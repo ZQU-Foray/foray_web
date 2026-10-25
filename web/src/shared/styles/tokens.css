@@ -1,0 +1,124 @@
+/* ============================================================
+   Foray 设计令牌（v5：v4 配色 + 非颜色优化）
+   来源：design-v5-preview/css/tokens.css。与 v5 的差异只有两处：
+   1. 中文字体用 Foray Sans（/ui/fonts，30,890 字、可变字重），
+      保证动态成员姓名里的生僻字不掉进系统字体；
+   2. --c-text-3 由 #888 加深到 #6E6E6E：它承载时间/负责人等信息性文字，
+      #888 在纸色上只有 3.4:1，达不到 4.5:1 的可读性下限。
+   页面与组件只引用这里的变量，不得另起调色板。
+   ============================================================ */
+
+@font-face { font-family: "Novecento Wide"; font-weight: 500; src: url(/ui/fonts/Novecentosanswide-Medium.748604.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Novecento Wide"; font-weight: 600; src: url(/ui/fonts/Novecentosanswide-DemiBold.089c2d.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Novecento Wide"; font-weight: 700; src: url(/ui/fonts/Novecentosanswide-Bold.7ac6f1.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Gilroy"; font-weight: 300; src: url(/ui/fonts/Gilroy-Light.9981d6.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Gilroy"; font-weight: 500; src: url(/ui/fonts/Gilroy-Medium.376b06.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Space Grotesk"; src: url(/ui/fonts/SpaceGrotesk.edd157.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url(/ui/fonts/JetBrainsMono-400.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; font-weight: 700; src: url(/ui/fonts/JetBrainsMono-700.woff2) format("woff2"); font-display: swap; }
+
+:root {
+  color-scheme: light;
+
+  /* ---- 基础色阶 ---- */
+  --c-white:    #FFFFFF;
+  --c-paper:    #FAFAFA;   /* 主画布 */
+  --c-surface:  #F2F2F2;   /* 次级面板底 / 安静填充 */
+  --c-hover:    #F3F3F3;   /* 行与导航悬停 */
+  --c-active:   #E5E5E5;   /* 当前项底色 */
+  --c-divider:  #D9D9D9;   /* 分隔线 */
+  --c-border:   #D9D9D9;
+  --c-muted:    #B3B3B3;   /* 装饰级浅灰 */
+  --c-ink:      #191919;   /* 主文字（非纯黑） */
+  --c-ink-2:    #35373C;
+  --c-text-2:   #4D4D4D;   /* 次级文字 */
+  --c-text-3:   #6E6E6E;   /* 元信息（时间 / 负责人） */
+  --c-text-4:   #B3B3B3;   /* 占位 / 禁用 / 装饰 */
+
+  /* ---- 三色信号条 ---- */
+  --c-yellow:   #FFFA00;   /* 唯一强调色：当前位置 / 主按钮 / 页头色块 */
+  --c-yellow-2: #EFE701;   /* 按钮左侧加深竖条 */
+  --c-yellow-soft: #FFFBCC;/* 今日格等极浅提示底 */
+  --c-mint:     #00FFA2;
+  --c-magenta:  #FF00F0;
+
+  /* ---- 语义色（只用于状态） ---- */
+  --c-ok:       #128A45;
+  --c-ok-bg:    #E6F4EC;
+  --c-ok-line:  #AADCC0;
+  --c-warn:     #B26A00;
+  --c-warn-bg:  #FFF5E6;
+  --c-warn-line:#FFCF80;
+  --c-danger:   #D42B23;
+  --c-danger-2: #A8211A;
+  --c-danger-bg:#FDECEA;
+  --c-danger-line:#F5B7B1;
+  --c-info:     #1F6FB2;
+
+  /* ---- 控制台（深底日志） ---- */
+  --c-console:      #141414;
+  --c-console-line: #2E2E2E;
+  --c-console-text: #D4D4D4;
+  --c-log-ok:   #2BE3A0;
+  --c-log-warn: #FFB547;
+  --c-log-err:  #FF5A4E;
+  --c-log-info: #6AA8FF;
+  --c-log-dim:  #6B6B6B;
+
+  /* ---- 角色映射 ---- */
+  --paper:      var(--c-paper);
+  --bg:         var(--c-paper);
+  --surface:    var(--c-white);
+  --surface-2:  var(--c-surface);
+  --text:       var(--c-ink);
+  --line:       var(--c-divider);
+  --accent:     var(--c-yellow);
+
+  /* ---- 字体 ---- */
+  --f-cn:    "Foray Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --f-wide:  "Novecento Wide", var(--f-cn);            /* 大写技术标签 */
+  --f-num:   "Gilroy", "Space Grotesk", var(--f-cn);   /* 数字 */
+  --f-tech:  "Space Grotesk", var(--f-cn);
+  --f-mono:  "JetBrains Mono", ui-monospace, monospace;
+
+  /* ---- 字号阶 ---- */
+  --fs-micro: 10px;
+  --fs-xs:    11px;
+  --fs-sm:    12px;
+  --fs-md:    14px;
+  --fs-lg:    16px;
+  --fs-xl:    20px;
+  --fs-2xl:   28px;
+  --fs-3xl:   40px;
+  --fs-hero:  88px;
+
+  /* ---- 间距（8px 基准） ---- */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+
+  /* ---- 形状：零圆角；切角 = 可点击 ---- */
+  --ef-cut: 7px;
+  --ef-cut-btn: 8px;
+  --cut-sm: polygon(0 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+  --cut:    polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%);
+  --cut-btn:polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+
+  /* ---- 动效：snap / mech 曲线 ---- */
+  --ef-snap: cubic-bezier(.16, 1, .3, 1);
+  --ef-mech: cubic-bezier(.7, 0, .2, 1);
+  --t-fast: .15s ease;
+  --t-base: .22s ease;
+  --t-slow: .28s cubic-bezier(.7, 0, .2, 1);
+  --t-entrance: .52s cubic-bezier(.16, 1, .3, 1);
+  --t-nav: .3s cubic-bezier(.7, 0, .2, 1);
+
+  /* ---- 布局 ---- */
+  --sidebar-w:           220px;
+  --sidebar-w-collapsed: 64px;
+  --topbar-h:            56px;
+  --page-max:            1320px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-fast: 0s; --t-base: 0s; --t-slow: 0s; --t-entrance: 0s; --t-nav: 0s; }
+}

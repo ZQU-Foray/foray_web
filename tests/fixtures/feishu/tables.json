@@ -1,0 +1,16 @@
+{
+  "_comment": "匿名 fixture：模拟 GET /open-apis/bitable/v1/apps/{app_token}/tables 响应。用于无凭据环境下演练校验工具与同步逻辑。全部数据虚构。",
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "has_more": false,
+    "page_token": "",
+    "total": 4,
+    "items": [
+      {"table_id": "tblFixProjects01", "name": "项目", "revision": 1},
+      {"table_id": "tblFixTasks0001", "name": "事项", "revision": 1},
+      {"table_id": "tblFixMilestn01", "name": "重要节点", "revision": 1},
+      {"table_id": "tblFixSchedl01", "name": "公共日程", "revision": 1}
+    ]
+  }
+}

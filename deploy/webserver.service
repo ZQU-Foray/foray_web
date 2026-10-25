@@ -1,0 +1,15 @@
+[Unit]
+Description=STM32 LAN Flash/Debug WebServer
+After=network.target
+
+[Service]
+Type=simple
+# 改成实际运行用户（需能访问 /dev/ttyACM* 与 hidraw，udev rules 已放开权限）
+User=root
+WorkingDirectory=/opt/stm32-webserver
+ExecStart=/opt/stm32-webserver/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 80
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

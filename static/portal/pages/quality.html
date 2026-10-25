@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<link rel="preload" href="/ui/fonts/ForaySans-latin.f0bdbd22cf.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/ui/fonts/ForaySans-common.ac7de56925.woff2" as="font" type="font/woff2" crossorigin>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/ui/favicon.png">
+<script src="/ui/sidebar.js?v=20260914mobile1"></script>
+<script src="/ui/handoff.js?v=20260914"></script>
+
+<title>Foray 战队管理门户 · 数据质量</title>
+<link rel="stylesheet" href="/portal/portal.css?v=20261012a">
+<link rel="stylesheet" href="/ui/boot.css?v=20260915font1">
+<script defer src="/ui/boot.js?v=20260913a"></script>
+</head>
+<body class="portal app" data-page="quality">
+
+<div class="app-handoff-cover" aria-hidden="true"></div>
+
+<div class="app-shell">
+
+  <aside class="app-sidebar">
+    <div class="side-brand" data-code="PTL-02">
+      <img src="/ui/foray-robomaster.svg" alt="FORAY">
+      <div class="side-brand-text">
+        <b>战队门户</b>
+        <small>TEAM PORTAL</small>
+      </div>
+    </div>
+
+    <nav class="side-nav" aria-label="主导航">
+      <span class="side-nav-label">MANAGEMENT</span>
+      <a class="side-nav-item" href="/"><span class="nav-no">01</span><span>总览</span><small>HOME</small></a>
+      <a class="side-nav-item" href="/procurement"><span class="nav-no">02</span><span>物资采购</span><small>PROCUREMENT</small></a>
+      <a class="side-nav-item" href="/projects"><span class="nav-no">03</span><span>项目</span><small>PROJECT</small></a>
+      <a class="side-nav-item" href="/tasks"><span class="nav-no">04</span><span>事项</span><small>TASKS</small></a>
+      <a class="side-nav-item" href="/schedule"><span class="nav-no">05</span><span>日程</span><small>SCHEDULE</small></a>
+      <span class="side-nav-label">DIAGNOSTICS</span>
+      <a class="side-nav-item" href="/quality" aria-current="page"><span class="nav-no">06</span><span>数据质量</span><small>QUALITY</small></a>
+    </nav>
+
+    <div class="side-foot" data-label="AUXILIARY MODULE">
+      <div class="side-info-card">
+        <div class="side-info-head"><span>SYNC</span><b>FS</b></div>
+        <!--SYNC_SLOT-->
+      </div>
+      <div class="side-info-card">
+        <div class="side-info-head"><span>OPERATOR</span><b>ID</b></div>
+        <!--WHO_SLOT-->
+      </div>
+      <a class="side-portal-link c-btn ghost" href="/debug/">调试台 →</a>
+    </div>
+  </aside>
+
+  <div class="app-main">
+    <header class="sys-bar">
+      <span class="sys-id">FORAY // PORTAL</span>
+      <span class="sys-track" aria-hidden="true"><i></i></span>
+      <span class="sys-state">TEAM MANAGEMENT</span>
+      <span class="sys-slot">飞书只读同步 · LAN UNIT 02</span>
+      <a class="sys-switch" href="/debug/">调试台 ⇄</a>
+    </header>
+
+    <main class="p-main" id="p-main"><!--DATA_NOTE_SLOT-->
+      <section class="p-card">
+        <h2><span class="tag">EXCLUDED / 01</span>被排除的记录</h2>
+        <p id="quality-summary" class="p-note"></p>
+        <div id="quality-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 侧栏收纳开关：预渲染进首帧，避免 JS 事后插入在切页时闪现（sidebar.js 复用它） -->
+  <button type="button" class="side-toggle" aria-label="收起 / 展开侧边栏" title="收起 / 展开侧边栏"></button>
+</div>
+
+<script src="/portal/portal.js?v=20261012a"></script>
+<script src="/portal/nav.js?v=20260929a"></script>
+<script defer src="/ui/font-repair.js?v=20260915font1"></script>
+</body>
+</html>

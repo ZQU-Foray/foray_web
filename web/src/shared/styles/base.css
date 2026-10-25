@@ -1,0 +1,133 @@
+/* ============================================================
+   基础层：重置 / 画布纹理 / 装饰母题 / 动效编排
+   来源：design-v5-preview/css/base.css。
+   防闪烁纪律：入场一律纯位移 / 纯几何，不用 opacity 从 0 淡入；
+   不放无限循环动画（v5：去掉在线点脉冲与危险点闪烁）。
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+html { -webkit-font-smoothing: antialiased; text-size-adjust: 100%; }
+body {
+  min-height: 100vh;
+  font: 400 var(--fs-md)/1.65 var(--f-cn);
+  color: var(--c-ink);
+  background: var(--c-paper);
+  font-variant-numeric: tabular-nums;
+}
+/* 画布：斜线微纹理 2.8% + 右上等高线 5% */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    repeating-linear-gradient(-45deg,
+      rgba(25, 25, 25, .028) 0, rgba(25, 25, 25, .028) 1px,
+      transparent 1px, transparent 8px),
+    repeating-radial-gradient(ellipse 140% 80% at 100% 0%,
+      transparent 0, transparent 28px,
+      rgba(25, 25, 25, .05) 28px, rgba(25, 25, 25, .05) 29px);
+  -webkit-mask: linear-gradient(135deg, rgba(0,0,0,0) 30%, rgba(0,0,0,.5) 60%, rgba(0,0,0,.25));
+          mask: linear-gradient(135deg, rgba(0,0,0,0) 30%, rgba(0,0,0,.5) 60%, rgba(0,0,0,.25));
+}
+#app { position: relative; z-index: 1; }
+
+a { color: inherit; text-decoration: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+img { max-width: 100%; }
+::selection { background: var(--c-yellow); color: var(--c-ink); }
+:focus-visible { outline: 2px solid var(--c-ink); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* 视觉隐藏（读屏可读） */
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- 三色信号条 ---------- */
+.signal-bar {
+  position: sticky; top: 0; height: 3px; z-index: 30; flex: none;
+  background: linear-gradient(90deg,
+    var(--c-magenta) 0 11%, var(--c-yellow) 11% 68%, var(--c-mint) 68% 100%);
+  pointer-events: none;
+}
+
+/* ---------- 文字工具 ---------- */
+.t-micro {
+  font: 500 var(--fs-micro)/1.2 var(--f-wide);
+  letter-spacing: .18em; text-transform: uppercase; color: var(--c-text-3);
+}
+.t-wide { font-family: var(--f-wide); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.t-num  { font-family: var(--f-num); font-weight: 500; font-variant-numeric: tabular-nums; }
+.t-mono { font-family: var(--f-mono); }
+.ef-field { font: 600 12px/1.6 var(--f-num); color: var(--c-text-2); font-variant-numeric: tabular-nums; }
+.ef-field .sep { color: var(--c-divider); margin: 0 8px; }
+.ef-field b { color: var(--c-ink); }
+
+/* ---------- 斜线警示带 ---------- */
+.hatch {
+  background: repeating-linear-gradient(-45deg,
+    currentColor 0, currentColor 2px, transparent 2px, transparent 8px);
+  opacity: .14;
+}
+
+/* ---------- 状态点（方形） ---------- */
+.dot { display: inline-block; width: 7px; height: 7px; flex: none; background: var(--c-text-4); }
+.dot.ok, .dot.live { background: var(--c-ok); }
+.dot.warn   { background: var(--c-warn); }
+.dot.danger { background: var(--c-danger); }
+
+/* ---------- 动效编排 ---------- */
+@keyframes moduleEnter {
+  from { transform: translate3d(0, 18px, 0); clip-path: inset(0 100% 0 0); }
+  to   { transform: translate3d(0, 0, 0);    clip-path: inset(0); }
+}
+@keyframes nav-enter { from { transform: translateY(14px); } }
+
+/* 模块揭幕入场：错峰 100ms（只在首次插入时播放；数据刷新是原地更新，不会重播） */
+.enter { animation: moduleEnter var(--t-entrance) backwards; }
+.enter:nth-child(2) { animation-delay: .1s; }
+.enter:nth-child(3) { animation-delay: .2s; }
+.enter:nth-child(4) { animation-delay: .3s; }
+
+/* ---------- 应用切换过场覆盖层（门户 ↔ 调试台 / 登录后） ---------- */
+.app-handoff-cover {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(-45deg, rgba(25, 25, 25, .05) 0 1px, transparent 1px 8px),
+    var(--c-paper);
+  border-right: 6px solid var(--c-yellow);
+  box-shadow: -8px 0 0 rgba(25, 25, 25, .8);
+}
+[data-handoff="out"] .app-handoff-cover {
+  display: block;
+  animation: handoffCoverIn .24s cubic-bezier(.4, 0, .2, 1) forwards;
+}
+[data-handoff="in"] .app-handoff-cover {
+  display: block;
+  animation: handoffCoverOut .34s cubic-bezier(.2, .82, .2, 1) .05s both;
+}
+@keyframes handoffCoverIn  { from { transform: translateX(-102%); } to { transform: translateX(0); } }
+@keyframes handoffCoverOut { from { transform: translateX(0); }     to { transform: translateX(102%); } }
+
+/* 开机引导盖出现前的首帧遮底；自带 5 秒兜底，脚本异常也不会把页面留在黑屏上 */
+html[data-boot="pending"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: #080A0B;
+  animation: bootGuardFail 0s 5s forwards;
+}
+@keyframes bootGuardFail { to { visibility: hidden; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .enter { animation: none; }
+  [data-handoff="out"] .app-handoff-cover,
+  [data-handoff="in"] .app-handoff-cover { display: none; }
+  html[data-boot="pending"]::before { display: none; }
+}

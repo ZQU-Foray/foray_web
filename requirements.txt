@@ -1,0 +1,6 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pyserial>=3.5
+pyudev>=0.24
+python-multipart>=0.0.9
+pyusb>=1.2

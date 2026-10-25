@@ -1,0 +1,25 @@
+{
+  "name": "foray-web",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Foray 战队门户与 STM32 调试台前端（Vue 3 + Vite + TypeScript），构建产物入库到 static/app/",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "vue": "^3.5.39"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "esbuild": "^0.28.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.16",
+    "vue-tsc": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=20.19"
+  }
+}

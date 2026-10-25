@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<link rel="preload" href="/ui/fonts/ForaySans-latin.f0bdbd22cf.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/ui/fonts/ForaySans-common.ac7de56925.woff2" as="font" type="font/woff2" crossorigin>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/ui/sidebar.js?v=20260914mobile1"></script>
+<title>Foray 战队管理门户 · 设置本站账号</title>
+<link rel="icon" type="image/png" href="/ui/favicon.png">
+<link rel="stylesheet" href="/portal/portal.css?v=20261012a">
+</head>
+<body class="portal app" data-page="onboarding">
+
+<main class="account-stage">
+  <header class="account-head">
+    <h1>设置<span class="hl">本站账号</span></h1>
+    <p class="account-sub">飞书身份已核验 · 设置用户名与密码后即可使用 · <span id="who">—</span></p>
+  </header>
+
+  <section class="p-card account-card">
+    <h2><span class="tag">ACCOUNT / ONBOARD</span>用户名与密码</h2>
+    <p class="p-note" id="ob-note" role="status" hidden></p>
+    <p class="p-empty">
+      本站账号用于登录门户与调试台；断网时也能用它登录调试。
+      用户名 3–32 个字符（中文/字母/数字/下划线/连字符），密码至少 8 位。
+    </p>
+    <form id="ob-form" autocomplete="off">
+      <label class="p-field">用户名
+        <input id="ob-user" name="username" required maxlength="32" autocomplete="username" autofocus>
+      </label>
+      <label class="p-field">密码
+        <input id="ob-pass" name="password" type="password" required autocomplete="new-password">
+      </label>
+      <label class="p-field">确认密码
+        <input id="ob-pass2" name="password2" type="password" required autocomplete="new-password">
+      </label>
+      <button class="big" type="submit">完成设置 →</button>
+    </form>
+    <p class="p-empty" id="ob-msg" role="status"></p>
+    <p class="p-empty">
+      只有本组织成员可通过飞书开通，没有公开注册。退出组织后本站账号会被删除。
+    </p>
+  </section>
+</main>
+
+<script src="/portal/account.js?v=20260913"></script>
+<script defer src="/ui/font-repair.js?v=20260915font1"></script>
+</body>
+</html>

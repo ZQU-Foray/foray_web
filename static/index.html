@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<link rel="preload" href="/ui/fonts/ForaySans-latin.f0bdbd22cf.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/ui/fonts/ForaySans-common.ac7de56925.woff2" as="font" type="font/woff2" crossorigin>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/ui/sidebar.js?v=20260914mobile1"></script>
+<script src="/ui/handoff.js?v=20260914"></script>
+<title>Foray 局域网烧录 / 调试台</title>
+<link rel="icon" type="image/png" sizes="128x128" href="favicon.png?v=20260908">
+<!-- 终末地设计系统：令牌 → 基础组件 → 本页样式（顺序即优先级） -->
+<link rel="stylesheet" href="/ui/tokens.css?v=20260915font1">
+<link rel="stylesheet" href="/ui/base.css?v=20260915font1">
+<link rel="stylesheet" href="style.css?v=20260915font1">
+<link rel="stylesheet" href="/ui/boot.css?v=20260915font1">
+<script defer src="/ui/boot.js?v=20260913a"></script>
+</head>
+<body class="app">
+<div class="app-handoff-cover" aria-hidden="true"></div>
+
+<!-- ============ 应用外壳：侧边栏 + 主区 ============ -->
+<div class="app-shell">
+
+  <!-- ---- 左侧边栏：品牌 / 导航 / 辅助模块 ---- -->
+  <aside class="app-sidebar">
+    <div class="side-brand" data-code="FDB-01">
+      <img src="/ui/foray-robomaster.svg" alt="FORAY">
+      <div class="side-brand-text">
+        <b>调试台</b>
+        <small>LAN DEBUG TERMINAL</small>
+      </div>
+    </div>
+
+    <nav class="side-nav" aria-label="功能导航">
+      <span class="side-nav-label">OPERATIONS</span>
+      <button type="button" class="side-nav-item tab active" data-tab="flash">
+        <span class="nav-no">01</span><span>固件烧录</span><small>FLASH</small>
+      </button>
+      <button type="button" class="side-nav-item tab" data-tab="serial">
+        <span class="nav-no">02</span><span>串口调试</span><small>SERIAL</small>
+      </button>
+      <button type="button" class="side-nav-item tab" data-tab="shoot">
+        <span class="nav-no">03</span><span>发射调试</span><small>SHOOT</small>
+      </button>
+      <button type="button" class="side-nav-item tab" data-tab="settings">
+        <span class="nav-no">04</span><span>设置</span><small>SYSTEM</small>
+      </button>
+    </nav>
+
+    <div class="side-foot" data-label="AUXILIARY MODULE">
+      <div class="side-info-card">
+        <div class="side-info-head"><span>LINK STATUS</span><b>SRV</b></div>
+        <span class="conn"><span id="conn-dot" class="dot"></span><span id="conn-text">连接中…</span></span>
+      </div>
+      <a class="side-portal-link c-btn ghost" href="/">← 管理门户</a>
+    </div>
+  </aside>
+
+  <!-- ---- 主区：系统条 / 设备条 / 页签内容 ---- -->
+  <div class="app-main">
+
+    <header class="sys-bar">
+      <span class="sys-id">FORAY // DEBUG</span>
+      <span class="sys-track" aria-hidden="true"><i></i></span>
+      <span class="sys-state">LAN DEBUG UNIT</span>
+      <span class="sys-slot sys-colophon">OPENOCD · FASTAPI · PYSERIAL — ED.01</span>
+      <a class="sys-switch" href="/">门户 ⇄</a>
+    </header>
+
+    <!-- 设备条：连接方式 / 设备选择 / 扫描 / 手动添加（ids 与 app.js 契约一致） -->
+    <div class="dev-strip">
+      <div class="dev-zone" id="dev-zone">
+        <label>连接方式 <select id="connection-mode"><option value="sta">单STA</option><option value="usb">USB / AP</option></select></label>
+        <label>当前设备 <select id="device-select" class="sel-device"></select>
+        <span class="badge dim device-health" id="device-health" style="display:none">未知</span></label>
+        <button id="dev-scan" type="button">扫描 STA</button>
+        <form id="sta-add">
+          <input id="sta-host" aria-label="STA IPv4 地址" placeholder="STA 地址，如 192.168.1.20" required>
+          <button type="submit">添加</button>
+        </form>
+      </div>
+      <p id="device-hint" role="status">正在读取设备…</p>
+    </div>
+
+    <main class="main-area">
+
+      <!-- ============ 01 固件烧录 ============ -->
+      <section id="tab-flash" class="panel active">
+        <div class="grid2">
+          <div class="card">
+            <h2 class="lbl"><span class="tag">DEVICES / 01</span>设备状态</h2>
+            <div id="device-list" class="devlist">扫描中…</div>
+
+            <h2 class="lbl"><span class="tag">PARAMS / 02</span>烧录参数</h2>
+            <label>目标芯片
+              <select id="target-select"></select>
+            </label>
+            <label>调试器
+              <select id="probe-select"></select>
+            </label>
+            <label>固件
+              <select id="firmware-select"><option value="">（无固件）</option></select>
+            </label>
+            <div class="row">
+              <button id="flash-btn" class="primary">开始烧录</button>
+              <span id="flash-state" class="badge idle">空闲</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2 class="lbl"><span class="tag">LOG / 03</span>烧录日志 <button id="log-clear" class="mini">清屏</button></h2>
+            <pre id="flash-log" class="console"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 02 串口调试 ============ -->
+      <section id="tab-serial" class="panel">
+        <div class="card">
+          <h2 class="lbl"><span class="tag">SERIAL / 01</span>串口调试</h2>
+          <p class="hint" id="serial-connection-hint"></p>
+          <div class="row wrap">
+            <label>串口
+              <select id="port-select"><option value="auto">自动选择</option></select>
+            </label>
+            <label>波特率
+              <input id="baud-input" type="number" value="115200">
+            </label>
+            <button id="serial-open" class="primary">打开串口</button>
+            <button id="serial-close">关闭串口</button>
+            <span id="serial-state" class="badge idle">未打开</span>
+          </div>
+          <div class="row wrap">
+            <span class="hint inline">预设指令:</span>
+            <span id="preset-buttons"></span>
+          </div>
+          <pre id="serial-log" class="console"></pre>
+          <div class="row">
+            <input id="serial-input" placeholder="输入要发送的内容，回车发送">
+            <label class="inline"><input type="checkbox" id="hex-mode"> HEX</label>
+            <button id="serial-send" class="primary">发送</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 03 发射调试 ============ -->
+      <section id="tab-shoot" class="panel">
+        <div class="card">
+          <h2 class="lbl"><span class="tag">SHOOT / 01</span>发射机构电机调试</h2>
+          <p class="hint" id="shoot-connection-hint"></p>
+          <div class="shoot-top">
+            <button id="shoot-open" class="primary">连接串口</button>
+            <button id="shoot-close">断开</button>
+            <span class="badge dim" id="link-badge">链路: 查询中</span>
+            <span class="badge dim" id="rtt-badge">RTT: -</span>
+            <span class="spacer"></span>
+            <button id="shoot-estop" class="estop">■ 急停 (E-STOP)</button>
+          </div>
+
+          <div class="shoot-body">
+            <!-- 左列：按 id 折叠收纳的电机参数 -->
+            <div class="shoot-motors" id="motor-panels"></div>
+
+            <!-- 右侧：波形（按数据类型分图）与反馈数据 -->
+            <div class="detail-panel" id="detail-panel">
+              <div class="detail-controls">
+                <span class="hint inline">电机:</span>
+                <label class="chk"><input type="checkbox" id="dc-m1" checked> M-1</label>
+                <label class="chk"><input type="checkbox" id="dc-m2" checked> M-2</label>
+                <label class="chk"><input type="checkbox" id="dc-m3" checked> M-3</label>
+                <span class="hint inline" style="margin-left:8px">数据:</span>
+                <label class="chk"><input type="checkbox" id="dc-rpm" checked><span class="sw" style="--c:#FFF44F"></span>转速</label>
+                <label class="chk"><input type="checkbox" id="dc-deg"><span class="sw" style="--c:#00D8D8"></span>角度</label>
+                <label class="chk"><input type="checkbox" id="dc-current" checked><span class="sw" style="--c:#FF2FA5"></span>电流</label>
+                <label class="chk"><input type="checkbox" id="dc-torque"><span class="sw" style="--c:#7FD9A0"></span>力矩</label>
+                <label class="chk"><input type="checkbox" id="dc-temperature"><span class="sw" style="--c:#E0A458"></span>温度</label>
+                <label class="chk"><input type="checkbox" id="dc-freq"><span class="sw" style="--c:#A78BFA"></span>频率</label>
+                <label class="chk"><input type="checkbox" id="dc-target" checked> 目标叠加</label>
+                <span class="spacer"></span>
+                <span class="seg-cols" title="图表布局列数（绘图较多或分辨率不足时可手动收紧）">
+                  <button data-cols="auto">自动</button><button data-cols="1">1 列</button><button data-cols="2">2 列</button>
+                </span>
+                <button id="dc-start">开始绘图</button>
+                <button id="dc-clear">清空</button>
+                <button id="dc-export" class="primary">导出 CSV</button>
+              </div>
+              <div class="numgrid" id="numgrid"></div>
+              <div class="dchart-grid" id="detail-charts"></div>
+              <p class="hint">每个数据类型独立一图（图内三电机同量纲同尺度，可直接对比）；
+                线型区分电机（实线/长虚/点虚），半透明细线=目标值。
+                绘图默认关闭，点「开始绘图」后录制最近 60 秒 @50Hz；
+                停止后画面冻结仍可导出。频率图仅对 M2006（需在机械参数填槽数）。</p>
+            </div>
+          </div>
+
+          <p class="hint">与"串口调试"页互斥：打开一方会自动断开另一方（仅影响当前设备）。
+            型号/模式切换会自动失能；修改参数后需点 → 或 应用全部 提交生效。</p>
+        </div>
+      </section>
+
+      <!-- ============ 04 设置 ============ -->
+      <section id="tab-settings" class="panel">
+        <div class="card">
+          <h2 class="lbl"><span class="tag">PRESETS / 01</span>预设指令 / 串口参数（JSON）</h2>
+          <p class="hint">commands[].newline: crlf | lf | cr | none；encoding: text | hex。修改后点保存。</p>
+          <textarea id="presets-json" rows="14" spellcheck="false"></textarea>
+          <div class="row">
+            <button id="presets-save" class="primary">保存配置</button>
+            <span id="presets-msg" class="hint inline"></span>
+          </div>
+
+          <h2 class="lbl"><span class="tag">FIRMWARE / 02</span>固件管理</h2>
+          <div class="row wrap">
+            <input type="file" id="fw-file" accept=".elf,.hex,.bin">
+            <button id="fw-upload">上传固件</button>
+          </div>
+          <div id="fw-list" class="list"></div>
+          <p class="hint">固件目录: <span id="fw-dir"></span>（也可直接用 scp 等工具放入服务器目录）</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- 侧栏收纳开关：预渲染进首帧，避免 JS 事后插入在切页时闪现（sidebar.js 复用它） -->
+  <button type="button" class="side-toggle" aria-label="收起 / 展开侧边栏" title="收起 / 展开侧边栏"></button>
+</div>
+
+<div id="toast"></div>
+
+<script src="dropdown.js?v=20261019fix1"></script>
+<script src="chart.js?v=20260915font1"></script>
+<script src="app.js?v=20261019fix1"></script>
+<script src="shoot.js?v=20260912"></script>
+<script defer src="/ui/font-repair.js?v=20260915font1"></script>
+</body>
+</html>

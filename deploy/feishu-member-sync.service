@@ -1,0 +1,16 @@
+[Unit]
+Description=飞书成员事项与考勤统计同步
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/portal
+EnvironmentFile=/opt/portal/.env
+ExecStart=/usr/bin/python3 /opt/portal/scripts/feishu_member_sync.py --watch --interval 300
+Restart=on-failure
+RestartSec=30
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

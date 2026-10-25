@@ -1,0 +1,6 @@
+/* 设计系统入口：门户、调试台、登录三个应用共用同一份（顺序即优先级） */
+@import "./tokens.css";
+@import "./base.css";
+@import "./shell.css";
+@import "./components.css";
+@import "./boot.css";

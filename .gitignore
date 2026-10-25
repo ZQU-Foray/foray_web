@@ -1,0 +1,72 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# 运行配置与本地数据（含账号、会话、快照库、部署凭据）：一律不入库。
+# 只有 *.example.json 结构样例入库，新环境照着样例建真实文件
+config/*
+!config/*.example.json
+firmware/*
+!firmware/.gitkeep
+backups/
+*.db
+*.db-wal
+*.db-shm
+
+*.tar.gz
+*.tgz
+*.zip
+_ssh*.py
+_deploy*.py
+*_test.bin
+*.tmp
+*.bak
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.password
+id_rsa*
+config/credentials*
+*.log
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+.idea/
+.vscode/
+
+# AI 工具的本机会话产物（规划稿、权限设置等），不属于项目
+.zcode/
+.claude/
+
+# UI 设计参考素材（第三方网站存档与开源项目摘录，版权不属于本项目；仓库公开，只留本地）
+参考/
+
+# 设计预览稿 v3/v4/v5（含第三方字体与素材，只留本地）
+design-v*-preview/
+
+# 第三方字体与素材：授权不允许公开分发，只留本地与服务器（deploy.py 按工作区打包，线上不受影响）
+static/ui/fonts/Gilroy-*
+static/ui/fonts/Novecentosanswide-*
+static/ui/fonts/HarmonyOS_Sans_SC_*
+static/ui/assets/
+
+# 飞书脚本的运行结果（含 Base / 表 / 字段 / 记录 ID），不入库
+docs/feishu-*.json
+
+# 一次性排查脚本与零散素材
+tests/e2e/_*.py
+foray_logo_v1.jpg
+
+# 无头浏览器共享库（Debian .deb 解包，按 tests/README.md 现场补齐）
+tests/e2e/browser-libs/
+
+# 前端依赖（web/ 下 npm ci 生成；构建产物 static/app/ 需要入库，不要忽略）
+node_modules/

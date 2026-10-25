@@ -1,0 +1,30 @@
+{
+  "source": "https://github.com/google/fonts/tree/main/ofl/notosanssc",
+  "source_sha256": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+  "family": "Foray Sans",
+  "weights": [
+    100,
+    900
+  ],
+  "characters": 30890,
+  "files": [
+    {
+      "name": "ForaySans-latin.f0bdbd22cf.woff2",
+      "characters": 244,
+      "bytes": 56384,
+      "sha256": "f0bdbd22cfbf8be93f106cbd527d4f98690efcff6f35cd764c5417528f420c78"
+    },
+    {
+      "name": "ForaySans-common.ac7de56925.woff2",
+      "characters": 7610,
+      "bytes": 2041112,
+      "sha256": "ac7de56925ae81935152710c4f8b446fed4bd8f1c7427ce12a8240c352cdfc25"
+    },
+    {
+      "name": "ForaySans-extended.f946a6b36c.woff2",
+      "characters": 23036,
+      "bytes": 6031928,
+      "sha256": "f946a6b36c3b3442dba309bb3fb810ea234eec8c24d6f4d98840f62d4917adab"
+    }
+  ]
+}

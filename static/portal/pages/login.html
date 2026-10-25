@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<link rel="preload" href="/ui/fonts/ForaySans-latin.f0bdbd22cf.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/ui/fonts/ForaySans-common.ac7de56925.woff2" as="font" type="font/woff2" crossorigin>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/ui/sidebar.js?v=20260914mobile1"></script>
+<script src="/ui/handoff.js?v=20260914"></script>
+<title>Foray 战队管理门户 · 登录</title>
+<link rel="icon" type="image/png" href="/ui/favicon.png">
+<link rel="stylesheet" href="/portal/portal.css?v=20261012a">
+</head>
+<body class="portal app is-login" data-page="login">
+<div class="app-handoff-cover" aria-hidden="true"></div>
+
+<!-- 等高线装饰画布（含低对比网格） -->
+<div class="login-canvas" aria-hidden="true"></div>
+
+<a class="login-brand" href="/login" aria-label="FORAY RoboMaster">
+  <img class="login-brand-mark" src="/ui/foray-robomaster.svg" alt="FORAY RoboMaster">
+  <span class="login-brand-text">FORAY // TEAM PORTAL <b>UNIT 02</b></span>
+</a>
+
+<main class="login-stage">
+  <section class="login-box" aria-labelledby="login-title">
+    <span class="login-mark" aria-hidden="true"></span>
+    <header class="login-box-head">
+      <span class="login-tick" aria-hidden="true"></span>
+      <h1 id="login-title">登录</h1>
+      <span class="login-unit">UNIT 02</span>
+    </header>
+
+    <p class="p-note" id="login-note" role="status" hidden></p>
+
+    <form id="local-form" autocomplete="on">
+      <label class="login-field">
+        <span>用户名</span>
+        <input id="lo-user" name="username" class="login-input" required maxlength="32"
+               autocomplete="username" autofocus>
+      </label>
+      <label class="login-field">
+        <span>密码</span>
+        <input id="lo-pass" name="password" type="password" class="login-input" required
+               autocomplete="current-password">
+      </label>
+      <button class="login-submit" type="submit">登录</button>
+    </form>
+
+    <div class="login-or" aria-hidden="true"><span>或</span></div>
+
+    <a class="login-feishu" id="feishu-btn" href="/auth/feishu/start">
+      <span class="login-feishu-mark" aria-hidden="true"></span>飞书登录
+    </a>
+
+    <p class="login-small" id="lo-msg" role="status"></p>
+    <p class="login-small">忘记密码？<a href="/auth/feishu/start?purpose=reset">通过飞书验证后重设</a></p>
+  </section>
+</main>
+
+<script src="/portal/portal.js?v=20261012a"></script>
+<script src="/portal/login.js?v=20260913c"></script>
+<script defer src="/ui/font-repair.js?v=20260915font1"></script>
+</body>
+</html>

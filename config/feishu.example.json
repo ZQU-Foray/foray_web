@@ -1,0 +1,203 @@
+{
+  "_comment": "飞书门户只读同步配置模板。占位符 <> 必须替换。真实 App Secret 一律通过环境变量 FEISHU_APP_SECRET 注入，app_secret_ref 使用 env: 引用语法，禁止把明文密钥写入本文件或任何入库文件。字段映射使用真实 field_id（建表后用 scripts/feishu_verify.py 读取），不要把中文列名当作接口契约。",
+  "app_id": "<cli_xxxxxxxxxxxxxxxx>",
+  "app_secret_ref": "env:FEISHU_APP_SECRET",
+  "_tenant_note": "允许的组织标识。tenant_key 在首次 OAuth 登录（GET /open-apis/authen/v1/user_info 响应的 tenant_key 字段）或飞书管理后台获取后填入；为空数组时门户拒绝所有登录。禁止用通配符或留空表示允许任意组织——未取得前登录功能保持关闭并在界面明确标注。",
+  "allowed_tenant_keys": [],
+  "oauth": {
+    "authorize_endpoint": "https://accounts.feishu.cn/open-apis/authen/v1/authorize",
+    "redirect_url": "http://<局域网主机名或IP>:<端口>/auth/feishu/callback",
+    "_redirect_note": "该 URL 必须先添加到飞书开发者后台该应用的 安全设置 > 重定向 URL 列表（最多 300 条；支持 http 与自定义端口；路径中 ? 与 # 之后的后缀不参与匹配）。不在列表内回调将得到 code=2000 redirect_uri unmatch。",
+    "use_pkce_s256": true,
+    "scope": "",
+    "_scope_note": "用户授权 scope（空格分隔）。留空即可：登录只需 user_info 默认授权（返回 open_id / tenant_key / name），无需额外用户 scope。注意区分：应用身份权限（bitable:*/contact:* 供 tenant_access_token 使用）不属于此处；通讯录类与 employee_id 类 scope 是成员复核（服务端、应用身份）所需，与登录无关。offline_access（refresh_token）仅当阶段 3 决定长期续用 user_access_token 时才添加——当前设计登录后即建立本地会话、复核走应用身份，不需要。"
+  },
+  "base": {
+    "app_token": "<Base URL 中 feishu.cn/base/ 之后的一长串>",
+    "_app_token_note": "示例：https://xxx.feishu.cn/base/AAAAxxxx?table=tblBBBB 中 app_token=AAAAxxxx。wiki 形态需先调知识库接口换取 obj_token。"
+  },
+  "tables": {
+    "_comment": "同步表（计划 §4 四张 + members 一张）。table_id 建表后替换；fields 为 语义键 -> 真实 field_id 映射，语义键是后端契约，值必须用实际字段 ID。table_id 留空 = 该表不参与同步。",
+    "projects": {
+      "table_id": "<tbl_projects>",
+      "display_name": "项目",
+      "fields": {
+        "name": "<fld 项目名称 文本/主字段>",
+        "description": "<fld 项目说明 多行文本>",
+        "owner_group": "<fld 主责组 单选>",
+        "collab_groups": "<fld 协作组 多选>",
+        "owners": "<fld 负责人 人员-多选>",
+        "plan_start": "<fld 计划开始 日期>",
+        "plan_end": "<fld 计划结束 日期>",
+        "status": "<fld 项目状态 单选: 筹备中/进行中/已结束/已归档>"
+      }
+    },
+    "tasks": {
+      "table_id": "<tbl_tasks>",
+      "display_name": "事项",
+      "fields": {
+        "name": "<fld 事项名称 文本/主字段>",
+        "project": "<fld 所属项目 关联->projects>",
+        "owner_group": "<fld 主责组 单选: 机械/硬件/电控/算法/运营>",
+        "collab_groups": "<fld 协作组 多选>",
+        "owners": "<fld 负责人 人员-多选>",
+        "priority": "<fld P等级 单选: P0/P1/P2/P3>",
+        "status": "<fld 状态 单选: 未开始/进行中/受阻/已完成/已取消>",
+        "start_time": "<fld 开始时间 日期>",
+        "due_time": "<fld 截止时间 日期>",
+        "due_precision": "<fld 截止时间精度 单选: 仅日期/精确时刻>",
+        "done_time": "<fld 完成时间 日期>",
+        "description": "<fld 事项说明 多行文本>",
+        "blocker_note": "<fld 阻塞说明 多行文本>"
+      }
+    },
+    "milestones": {
+      "table_id": "<tbl_milestones>",
+      "display_name": "重要节点",
+      "fields": {
+        "name": "<fld 节点名称 文本/主字段>",
+        "kind": "<fld 节点类型 单选: 比赛/关键检查>",
+        "target_time": "<fld 目标日期时间 日期>",
+        "time_precision": "<fld 时间精度 单选: 仅日期/精确时刻>",
+        "project": "<fld 所属项目 关联->projects>",
+        "visibility": "<fld 展示状态 单选: 展示/隐藏/已取消>",
+        "description": "<fld 节点说明 多行文本>"
+      }
+    },
+    "schedule": {
+      "table_id": "<tbl_schedule>",
+      "display_name": "公共日程",
+      "fields": {
+        "name": "<fld 日程名称 文本/主字段>",
+        "start_time": "<fld 开始时间 日期>",
+        "end_time": "<fld 结束时间 日期>",
+        "all_day": "<fld 全天 复选框>",
+        "kind": "<fld 活动类型 单选: 例会/联调/测试/其他>",
+        "groups": "<fld 相关组 多选>",
+        "participants": "<fld 参与人 人员-多选>",
+        "location": "<fld 地点 文本>",
+        "project": "<fld 所属项目 关联->projects>",
+        "description": "<fld 日程说明 多行文本>",
+        "status": "<fld 状态 单选: 正常/已取消>"
+      }
+    },
+    "members": {
+      "table_id": "<tbl_members>",
+      "display_name": "成员数据",
+      "_note": "本表由 scripts/feishu_member_sync.py 写入，门户只读；数字字段飞书返回为字符串，归一化统一转数值。周结算列（周初时长/结算周/上周时长/本周时长/本周达标/上周达标/请假周）由 scripts/feishu_attendance_setup.py 建列并回填 field_id（--write-config）。",
+      "fields": {
+        "member": "<fld 成员 人员/主字段>",
+        "valid_tasks": "<fld 有效事项数 数字>",
+        "done_tasks": "<fld 已完成事项数 数字>",
+        "due_tasks": "<fld 到期事项数 数字>",
+        "on_time_tasks": "<fld 准时完成数 数字>",
+        "overdue_tasks": "<fld 逾期未完成数 数字>",
+        "missing_delivery": "<fld 交付时间待补数 数字>",
+        "tasks_without_due": "<fld 未设截止事项数 数字>",
+        "completion_rate": "<fld 总体完成率 公式>",
+        "on_time_rate": "<fld 准时完成率 公式>",
+        "summary_note": "<fld 统计说明 公式>",
+        "last_check_in": "<fld 最近签到 日期>",
+        "work_hours": "<fld 有效时长（小时） 数字>",
+        "attendance_anomalies": "<fld 异常考勤数 数字>",
+        "synced_at": "<fld 同步时间 日期>",
+        "sync_note": "<fld 同步说明 文本>",
+        "last_check_out": "<fld 最近签退 日期>",
+        "week_base": "<fld 周初时长 数字>",
+        "week_key": "<fld 结算周 文本>",
+        "last_week_hours": "<fld 上周时长 数字>",
+        "week_hours": "<fld 本周时长 公式>",
+        "week_ok": "<fld 本周达标 公式>",
+        "last_week_ok": "<fld 上周达标 公式>",
+        "leave_week": "<fld 请假周 文本>"
+      }
+    },
+    "roster": {
+      "table_id": "<tbl_roster>",
+      "display_name": "花名册",
+      "_note": "组长身份判定源：会话 open_id 出现在某组 leaders 里即为该组组长（服务端权威）。",
+      "fields": {
+        "duty": "<fld 职责名称 文本>",
+        "group": "<fld 组别 单选>",
+        "leaders": "<fld 组长 人员>",
+        "members": "<fld 组员 人员>"
+      }
+    },
+    "procurement": {
+      "table_id": "<tbl_procurement>",
+      "display_name": "物资采购",
+      "_note": "物资明细表。结构可用 scripts/feishu_procurement_setup.py 幂等补建；total_price 是飞书公式列（＝单价×数量），门户只读、永不写入；除 leader_approval（组长批复）仅组长可改外全员可改。字段口径见 docs/procurement-detail.md。",
+      "fields": {
+        "name": "<fld 采购物资名称 文本>",
+        "groups": "<fld 申请组别 多选>",
+        "link": "<fld 购物链接 文本>",
+        "purpose": "<fld 用途说明 文本>",
+        "attachments": "<fld 图片补充 附件>",
+        "leader_approval": "<fld 组长批复 复选>",
+        "purchased": "<fld 已采购 复选>",
+        "season": "<fld 赛季 单选>",
+        "category1": "<fld 一级分类 单选>",
+        "category2": "<fld 二级分类 单选>",
+        "code": "<fld 采购编号 文本>",
+        "purchase_date": "<fld 采购日期 日期>",
+        "unit_price": "<fld 单价（元） 数字>",
+        "quantity": "<fld 数量 数字>",
+        "total_price": "<fld 总价（元） 公式＝单价×数量>",
+        "purchaser": "<fld 采购人 人员>",
+        "invoice_done": "<fld 发票已开 复选>",
+        "invoice_files": "<fld 发票文件 附件>"
+      }
+    },
+    "duty": {
+      "_note": "维护者导入、门户只读：每行填日期或星期之一 + 值日人员；按日期的行优先（见 app/portal/attendance.py）。表与列由 scripts/feishu_attendance_setup.py 建好并回填。",
+      "display_name": "值日表",
+      "table_id": "<tbl_duty>",
+      "fields": {
+        "date": "<fld 日期 日期>",
+        "weekday": "<fld 星期 单选>",
+        "people": "<fld 值日人员 人员>"
+      }
+    }
+  },
+  "member_recheck": {
+    "_comment": "成员状态复核（计划 §6.5）：用应用身份调 GET /open-apis/contact/v3/users/{open_id}，读取 status.is_resigned / is_exited。需为应用开通 contact 通讯录权限（见 docs/feishu-setup.md §权限矩阵）。",
+    "interval_sec": 300,
+    "grace_period_sec": 300,
+    "user_id_type": "open_id"
+  },
+  "sync": {
+    "interval_sec": 60,
+    "page_size": 100,
+    "request_timeout_sec": 10,
+    "retries": 2,
+    "retry_backoff_sec": 1.0,
+    "stale_after_sec": 180,
+    "tables_endpoint": "https://open.feishu.cn/open-apis/bitable/v1/apps/{app_token}/tables",
+    "fields_endpoint": "https://open.feishu.cn/open-apis/bitable/v1/apps/{app_token}/tables/{table_id}/fields",
+    "records_endpoint": "https://open.feishu.cn/open-apis/bitable/v1/apps/{app_token}/tables/{table_id}/records"
+  },
+  "display": {
+    "due_soon_hours": 72,
+    "timezone": "Asia/Shanghai",
+    "groups": [
+      "机械",
+      "硬件",
+      "电控",
+      "算法",
+      "运营"
+    ],
+    "priorities": [
+      "P0",
+      "P1",
+      "P2",
+      "P3"
+    ],
+    "task_statuses": [
+      "未开始",
+      "进行中",
+      "受阻",
+      "已完成",
+      "已取消"
+    ]
+  }
+}

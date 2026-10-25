@@ -1,0 +1,116 @@
+{
+  "_comment": "匿名 fixture：四张表的记录样本（每人每表拆 2 页，演练分页翻页）。字段值形状与 2026-09-08 真实 API 实测一致：文本=字符串、单选=选项名字符串、日期=毫秒时间戳、人员=[{id,name,en_name,email}]（id 用匿名 ou_fix* 占位）、关联=[{table_id,record_ids,text,text_arr,type}]。时间戳示例：1795000000000≈2026-11-02（UTC）。全部人名/项目/节点均为虚构。",
+  "projects": [
+    {"page": 1, "resp": {"code": 0, "msg": "success", "data": {
+      "has_more": true, "page_token": "recFixPrjPage2", "total": 3,
+      "items": [
+        {"record_id": "recFixPrj001", "created_time": 1794900000000,
+         "fields": {"项目名称": "哨兵机器人", "项目说明": "前哨站自动防御",
+           "主责组": "电控", "协作组": ["机械", "算法"],
+           "负责人": [{"id": "ou_fixmember01", "name": "成员甲", "en_name": "Fixture One", "email": ""}],
+           "计划开始": 1794900000000, "计划结束": 1797600000000, "项目状态": "进行中"}},
+        {"record_id": "recFixPrj002", "created_time": 1794900000000,
+         "fields": {"项目名称": "英雄机器人", "项目说明": "步兵改造",
+           "主责组": "机械", "协作组": [],
+           "负责人": [{"id": "ou_fixmember02", "name": "成员乙", "en_name": "Fixture Two", "email": ""}],
+           "计划开始": 1794900000000, "计划结束": null, "项目状态": "筹备中"}}
+      ]}}},
+    {"page": 2, "resp": {"code": 0, "msg": "success", "data": {
+      "has_more": false, "total": 3,
+      "items": [
+        {"record_id": "recFixPrj003", "created_time": 1794900000000,
+         "fields": {"项目名称": "官网改版", "项目说明": null,
+           "主责组": "运营", "协作组": ["算法"],
+           "负责人": [], "计划开始": null, "计划结束": 1796300000000, "项目状态": "进行中"}}
+      ]}}}
+  ],
+  "tasks": [
+    {"page": 1, "resp": {"code": 0, "msg": "success", "data": {
+      "has_more": true, "page_token": "recFixTskPage2", "total": 4,
+      "items": [
+        {"record_id": "recFixTsk001", "created_time": 1794900000000,
+         "fields": {"事项名称": "电源板打样", "所属项目": [
+             {"record_ids": ["recFixPrj002"], "table_id": "tblFixProjects01", "text": "英雄机器人", "text_arr": ["英雄机器人"], "type": "text"}],
+           "主责组": "硬件", "协作组": [], "负责人": [{"id": "ou_fixmember03", "name": "成员丙", "en_name": "", "email": ""}],
+           "P等级": "P0", "状态": "进行中", "开始时间": 1794900000000,
+           "截止时间": 1795100000000, "截止时间精度": "仅日期", "完成时间": null,
+           "事项说明": "第三版电源板", "阻塞说明": null}},
+        {"record_id": "recFixTsk002", "created_time": 1794900000000,
+         "fields": {"事项名称": "自瞄算法联调", "所属项目": [
+             {"record_ids": ["recFixPrj001"], "table_id": "tblFixProjects01", "text": "哨兵机器人", "text_arr": ["哨兵机器人"], "type": "text"}],
+           "主责组": "算法", "协作组": ["电控"], "负责人": [],
+           "P等级": "P1", "状态": "受阻", "开始时间": 1794800000000,
+           "截止时间": 1795000000000, "截止时间精度": "精确时刻", "完成时间": null,
+           "事项说明": null, "阻塞说明": "等待云台电机到货"}}
+      ]}}},
+    {"page": 2, "resp": {"code": 0, "msg": "success", "data": {
+      "has_more": false, "total": 4,
+      "items": [
+        {"record_id": "recFixTsk003", "created_time": 1794900000000,
+         "fields": {"事项名称": "场地预约", "所属项目": [], "主责组": "运营",
+           "协作组": [], "负责人": [{"id": "ou_fixmember02", "name": "成员乙", "en_name": "", "email": ""}],
+           "P等级": "P2", "状态": "已完成", "开始时间": 1794700000000,
+           "截止时间": 1794800000000, "截止时间精度": "仅日期", "完成时间": 1794750000000,
+           "事项说明": null, "阻塞说明": null}},
+        {"record_id": "recFixTsk004", "created_time": 1794900000000,
+         "fields": {"事项名称": "旧方案归档", "所属项目": [
+             {"record_ids": ["recFixPrj003"], "table_id": "tblFixProjects01", "text": "官网改版", "text_arr": ["官网改版"], "type": "text"}],
+           "主责组": "运营", "协作组": [], "负责人": [],
+           "P等级": "P3", "状态": "已取消", "开始时间": null,
+           "截止时间": null, "截止时间精度": null, "完成时间": null,
+           "事项说明": null, "阻塞说明": null}}
+      ]}}}
+  ],
+  "milestones": [
+    {"page": 1, "resp": {"code": 0, "msg": "success", "data": {
+      "has_more": true, "page_token": "recFixMilPage2", "total": 3,
+      "items": [
+        {"record_id": "recFixMil001", "created_time": 1794900000000,
+         "fields": {"节点名称": "区域赛", "节点类型": "比赛",
+           "目标日期时间": 1798400000000, "时间精度": "仅日期",
+           "所属项目": [], "展示状态": "展示", "节点说明": null}},
+        {"record_id": "recFixMil002", "created_time": 1794900000000,
+         "fields": {"节点名称": "中期检查", "节点类型": "关键检查",
+           "目标日期时间": 1796200000000, "时间精度": "精确时刻",
+           "所属项目": [{"record_ids": ["recFixPrj001"], "table_id": "tblFixProjects01", "text": "哨兵机器人", "text_arr": ["哨兵机器人"], "type": "text"}],
+           "展示状态": "展示", "节点说明": "全车称重与尺寸复核"}}
+      ]}}},
+    {"page": 2, "resp": {"code": 0, "msg": "success", "data": {
+      "has_more": false, "total": 3,
+      "items": [
+        {"record_id": "recFixMil003", "created_time": 1794900000000,
+         "fields": {"节点名称": "队内验收", "节点类型": "关键检查",
+           "目标日期时间": 1795800000000, "时间精度": "仅日期",
+           "所属项目": [], "展示状态": "隐藏", "节点说明": null}}
+      ]}}}
+  ],
+  "schedule": [
+    {"page": 1, "resp": {"code": 0, "msg": "success", "data": {
+      "has_more": true, "page_token": "recFixSchPage2", "total": 3,
+      "items": [
+        {"record_id": "recFixSch001", "created_time": 1794900000000,
+         "fields": {"日程名称": "周例会", "开始时间": 1795000000000,
+           "结束时间": 1795003600000, "全天": false, "活动类型": "例会",
+           "相关组": ["机械", "硬件", "电控", "算法", "运营"],
+           "参与人": [], "地点": "实验室", "所属项目": [],
+           "日程说明": null, "状态": "正常"}},
+        {"record_id": "recFixSch002", "created_time": 1794900000000,
+         "fields": {"日程名称": "全车联调", "开始时间": 1795200000000,
+           "结束时间": 1795286400000, "全天": true, "活动类型": "联调",
+           "相关组": ["电控", "算法"],
+           "参与人": [{"id": "ou_fixmember01", "name": "成员甲", "en_name": "", "email": ""}],
+           "地点": "测试场", "所属项目": [
+             {"record_ids": ["recFixPrj001"], "table_id": "tblFixProjects01", "text": "哨兵机器人", "text_arr": ["哨兵机器人"], "type": "text"}],
+           "日程说明": "带全场道具", "状态": "正常"}}
+      ]}}},
+    {"page": 2, "resp": {"code": 0, "msg": "success", "data": {
+      "has_more": false, "total": 3,
+      "items": [
+        {"record_id": "recFixSch003", "created_time": 1794900000000,
+         "fields": {"日程名称": "已取消的培训", "开始时间": 1795400000000,
+           "结束时间": null, "全天": false, "活动类型": "其他",
+           "相关组": [], "参与人": [], "地点": null, "所属项目": [],
+           "日程说明": null, "状态": "已取消"}}
+      ]}}}
+  ]
+}

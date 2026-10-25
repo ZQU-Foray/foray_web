@@ -1,0 +1,339 @@
+/* 门户与调试台共享的登录引导样式。 */
+.loading-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #080A0B;
+  color: #F5F6F2;
+  overflow: hidden;
+  animation: cover-failsafe 6s forwards;     /* 兜底：脚本失效时 6 秒后自动放行 */
+}
+
+@keyframes cover-failsafe {
+  0%, 96% { visibility: visible; }
+  100%    { visibility: hidden; }
+}
+
+/* 深色纹理底：官方卡面 + 灰度压暗 + 网格叠加 */
+.boot-material {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, .18), rgba(0, 0, 0, .52)),
+    radial-gradient(circle at 74% 42%, rgba(255, 255, 255, .055), transparent 33%),
+    url("/ui/assets/card-bg.28c79684.jpg") center / cover,
+    #080A0B;
+  filter: grayscale(1) brightness(.23) contrast(1.45);
+  transform: scale(1.04);
+}
+
+.boot-material::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 119px, rgba(255, 255, 255, .055) 119px 120px),
+    repeating-linear-gradient(0deg, transparent 0 119px, rgba(255, 255, 255, .035) 119px 120px),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, .015) 0 1px, transparent 1px 8px);
+}
+
+/* 等高线：同心不规则圈层（CSS box-shadow 圈） */
+.boot-contours {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: .72;
+  animation: contours-in 1.4s cubic-bezier(.2, .65, .2, 1) both;
+}
+
+@keyframes contours-in {
+  from { opacity: .3; transform: translate3d(12px, -8px, 0) scale(1.02); }
+  to   { opacity: .72; transform: none; }
+}
+
+.boot-contours::before {
+  content: "";
+  position: absolute;
+  right: -8vw; top: -24vh;
+  width: min(72vw, 980px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, .26);
+  border-radius: 44% 56% 52% 48%;
+  box-shadow: 0 0 0 46px rgba(255, 255, 255, .035), 0 0 0 92px rgba(255, 255, 255, .045),
+              0 0 0 139px rgba(255, 255, 255, .025), 0 0 0 188px rgba(255, 255, 255, .038),
+              0 0 0 238px rgba(255, 255, 255, .02);
+  transform: rotate(-13deg) skewX(5deg);
+}
+
+.boot-contours::after {
+  content: "";
+  position: absolute;
+  right: 5vw; bottom: -35vh;
+  width: min(54vw, 760px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 58% 42% 47% 53%;
+  box-shadow: 0 0 0 38px rgba(255, 255, 255, .028), 0 0 0 77px rgba(255, 255, 255, .04),
+              0 0 0 116px rgba(255, 255, 255, .022), 0 0 0 157px rgba(255, 255, 255, .033);
+  transform: rotate(18deg) skewY(-7deg);
+}
+
+.boot-contours i {
+  position: absolute;
+  display: block;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 50%;
+}
+
+.boot-contours i:nth-child(1) { right: 28vw; top: 18vh; width: 210px; height: 210px; }
+.boot-contours i:nth-child(2) { right: 20vw; top: 26vh; width: 76px; height: 76px; }
+.boot-contours i:nth-child(3) {
+  right: 11vw; bottom: 12vh;
+  width: 360px; height: 180px;
+  border-radius: 48% 52% 42% 58%;
+  transform: rotate(-24deg);
+}
+
+/* 左上角定位序号 */
+.boot-index {
+  position: absolute;
+  left: 142px;
+  top: 25px;
+  color: rgba(255, 255, 255, .42);
+  font: 600 8px/1.55 var(--f-sans);
+  letter-spacing: .15em;
+}
+
+.boot-index::before {
+  content: "";
+  display: inline-block;
+  width: 22px;
+  height: 4px;
+  margin-right: 8px;
+  background: var(--yellow);
+  vertical-align: 2px;
+}
+
+/* 左侧竖向载入轨：黄色填充高度 = --progress（app.js 逐帧写入） */
+.boot-loader {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: min(112px, 22vw);
+}
+
+.boot-loader-track {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .025);
+}
+
+.boot-loader-track::after {
+  content: "LOADING";
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  z-index: 3;
+  color: rgba(0, 0, 0, .45);
+  font: 700 8px/1 var(--f-sans);
+  letter-spacing: .12em;
+  writing-mode: vertical-rl;
+  transform: translateX(-50%);
+}
+
+.boot-loader-fill {
+  position: absolute;
+  inset: 0;
+  display: block;
+  height: var(--progress, 0%);
+  background: var(--yellow);
+  transform-origin: 50% 0;
+  box-shadow: 0 0 34px rgba(255, 244, 79, .45);
+  transition: height .05s linear;
+}
+
+/* 进度数值：跟随填充沿下移（钳制初始位置防裁切） */
+.boot-loader-value {
+  position: absolute;
+  left: calc(100% + 13px);
+  top: max(var(--progress, 0%), 9%);
+  display: flex;
+  align-items: flex-start;
+  color: #fff;
+  transform: translateY(-100%);
+  transition: top .05s linear;
+}
+
+.boot-loader-value b {
+  min-width: 64px;
+  font: 700 30px/.78 var(--f-num);
+  letter-spacing: -.06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--yellow);
+}
+
+.boot-loader-value::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 30px;
+  width: 38px;
+  height: 1px;
+  background: rgba(255, 255, 255, .62);
+}
+
+/* 中央身份区：项目标志 × 单元代号（入场从右滑入） */
+.boot-identity {
+  position: absolute;
+  right: clamp(52px, 7vw, 120px);
+  top: 50%;
+  width: min(50vw, 640px);
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 42px minmax(180px, .8fr);
+  gap: 18px;
+  align-items: center;
+  transform: translateY(-50%);
+}
+
+.boot-project-logo {
+  animation: identity-in .7s cubic-bezier(.16, .78, .18, 1) .14s both;
+}
+
+@keyframes identity-in {
+  from { opacity: 0; transform: translate3d(38px, 0, 0) scale(.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.boot-project-logo img {
+  display: block;
+  width: min(100%, 340px);
+  max-height: 240px;
+  object-fit: contain;
+  filter: invert(1) brightness(2.2) contrast(1.2);
+}
+
+.boot-project-logo > span {
+  display: block;
+  margin-top: -14px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, .34);
+  color: rgba(255, 255, 255, .48);
+  font: 600 8px/1 var(--f-sans);
+  letter-spacing: .12em;
+  text-align: center;
+}
+
+.boot-logo-divider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--yellow);
+  font: 600 18px/1 var(--f-latin);
+  opacity: .7;
+  animation: divider-in .62s cubic-bezier(.2, .8, .2, 1) .4s both;
+}
+
+@keyframes divider-in {
+  from { opacity: 0; transform: scaleY(.15); }
+  to   { opacity: .7; transform: none; }
+}
+
+.boot-logo-divider i {
+  width: 1px;
+  height: 76px;
+  background: linear-gradient(transparent, rgba(255, 255, 255, .55), transparent);
+}
+
+.boot-unit-logo {
+  animation: identity-in .68s cubic-bezier(.18, .76, .2, 1) .3s both;
+}
+
+.boot-unit-logo strong {
+  display: block;
+  color: #fff;
+  font: 900 clamp(40px, 4.6vw, 66px)/.85 var(--f-sans);
+  letter-spacing: -.1em;
+  text-shadow: 5px 5px 0 rgba(255, 255, 255, .08);
+}
+
+.boot-unit-logo span {
+  display: block;
+  margin-top: 12px;
+  color: rgba(255, 255, 255, .72);
+  font: 700 10px/1 var(--f-sans);
+  letter-spacing: .11em;
+}
+
+/* 右下角状态行：黄底黑字阶段徽标 + 状态文字（app.js 驱动文字） */
+.boot-status-copy {
+  position: absolute;
+  right: clamp(52px, 7vw, 120px);
+  bottom: 42px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.boot-status-copy .status-text {
+  padding: 5px 8px;
+  background: var(--yellow);
+  color: #111;
+  font: 700 8px/1 var(--f-sans);
+  letter-spacing: .12em;
+}
+
+.boot-status-copy b {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .06em;
+}
+
+/* 黄色揭幕层：sweeping 阶段自左向右铺满，fadeout 阶段淡出 */
+.boot-yellow-wipe {
+  position: absolute;
+  inset: 0;
+  background: var(--yellow);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+.loading-cover.sweeping .boot-yellow-wipe {
+  animation: cover-sweep .38s ease-in-out forwards;
+}
+
+@keyframes cover-sweep {
+  from { transform: scaleX(0); transform-origin: left; }
+  to   { transform: scaleX(1); transform-origin: left; }
+}
+
+.loading-cover.fadeout {
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+
+.loading-cover.fadeout .boot-yellow-wipe { transform: scaleX(1); }
+
+@media (max-width: 820px) {
+  .boot-loader { width: 72px; }
+  .boot-index { left: 94px; }
+  .boot-identity {
+    right: 28px;
+    width: 62vw;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .boot-logo-divider { display: none; }
+  .boot-project-logo img { max-height: 150px; }
+  .boot-unit-logo strong { font-size: 36px; }
+  .boot-status-copy { right: 28px; }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-cover { display: none !important; }
+}

@@ -1,0 +1,491 @@
+/* ============================================================
+   外壳：侧栏导轨 + 主区（顶栏 / 页头 / 内容）
+   视觉取自 design-v5-preview/css/shell.css；类名沿用现网外壳
+   （.app-shell / .app-sidebar / .side-nav-item / .side-toggle / .side-backdrop
+    与 html[data-nav] / html[data-mobile-nav]），收纳与移动抽屉的交互契约不变。
+   ============================================================ */
+
+/* ---------------- 布局 ---------------- */
+/* 页面纵向滚动条常驻：页面高度在视口高度附近时，展开 / 收起卡片、筛选结果变化会让滚动条
+   反复出现又消失，每次都把整页内容左右挤动一个滚动条宽度（如 1920×950 下展开发射调试的
+   电机卡）。登录类页面很短，在 auth.css 里改回自动；窄屏抽屉打开时仍由 data-mobile-nav 锁定。 */
+html { overflow-y: scroll; }
+.app-shell {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ---------------- 侧栏导轨（全浅色） ---------------- */
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  flex: none;
+  width: var(--sidebar-w);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-paper);
+  border-right: 1px solid var(--c-divider);
+  overflow: hidden;
+  z-index: 20;
+  transition: width var(--t-nav);
+  contain: paint;
+}
+.app-shell.is-nav-animating .app-sidebar { will-change: width; }
+
+/* 品牌区 */
+.side-brand {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 92px;
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--c-divider);
+  flex: none;
+}
+.side-brand img {
+  width: 30px;
+  height: 27px;
+  display: block;
+  object-fit: contain;
+  flex: none;
+  transform-origin: left top;
+  transition: transform var(--t-nav);
+}
+.side-brand-text { min-width: 0; flex: 1; }
+.side-brand-text b {
+  display: block;
+  font: 700 15px/1.2 var(--f-cn);
+  letter-spacing: .04em;
+  color: var(--c-ink);
+  white-space: nowrap;
+}
+.side-brand-text small {
+  display: block;
+  margin-top: 3px;
+  font: 600 8.5px/1 var(--f-wide);
+  letter-spacing: .22em;
+  color: var(--c-text-3);
+  white-space: nowrap;
+}
+.side-code { margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+.side-code-tag {
+  font: 700 9px/1 var(--f-wide);
+  letter-spacing: .16em;
+  padding: 3px 7px;
+  background: var(--c-ink);
+  color: var(--c-paper);
+}
+.side-code i { flex: 1; height: 1px; background: var(--c-divider); }
+.side-code-id { font: 600 10px/1 var(--f-num); letter-spacing: .08em; color: var(--c-text-3); }
+
+/* 导航列表 */
+.side-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0;
+  scrollbar-width: thin;
+}
+.side-nav::-webkit-scrollbar { width: 6px; }
+.side-nav::-webkit-scrollbar-thumb { background: var(--c-muted); }
+.side-nav-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px 6px;
+  font: 600 8.5px/1 var(--f-wide);
+  letter-spacing: .22em;
+  color: var(--c-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.side-nav-label::before { content: "//"; margin-right: 2px; }
+.side-nav-label::after { content: ""; flex: 1; height: 1px; background: var(--c-divider); }
+
+.side-nav-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px 0 18px;
+  border: 0;
+  background: transparent;
+  color: var(--c-ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+.side-nav-item::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background var(--t-fast);
+}
+.side-nav-item:hover { background: var(--c-hover); }
+.side-nav-item:hover::before { background: var(--c-divider); }
+.side-nav-item[aria-current="page"] { background: var(--c-active); }
+.side-nav-item[aria-current="page"]::before { background: var(--c-yellow); }
+.side-nav-item:focus-visible { outline-offset: -2px; }
+.nav-no {
+  font: 500 11px/1 var(--f-num);
+  color: var(--c-text-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.nav-name { min-width: 0; overflow: hidden; white-space: nowrap; }
+.nav-name b {
+  display: block;
+  font: 700 14px/1.2 var(--f-cn);
+  letter-spacing: .04em;
+}
+.nav-name small {
+  display: block;
+  margin-top: 2px;
+  font: 600 8px/1 var(--f-wide);
+  letter-spacing: .18em;
+  color: var(--c-text-3);
+}
+.nav-badge {
+  font: 700 10px/1 var(--f-num);
+  font-style: normal;
+  padding: 2px 6px;
+  background: var(--c-danger);
+  color: #fff;
+}
+
+/* 底部辅助区：同步 / 身份 / 跨应用入口 */
+.side-foot {
+  flex: none;
+  padding: 12px 14px 16px;
+  border-top: 1px solid var(--c-divider);
+  background: var(--c-surface);
+  display: grid;
+  gap: 8px;
+}
+.side-mod {
+  padding: 9px 12px;
+  background: var(--c-white);
+  border: 1px solid var(--c-divider);
+  min-width: 0;
+}
+.side-mod-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font: 700 8.5px/1 var(--f-wide);
+  letter-spacing: .18em;
+  color: var(--c-text-3);
+}
+.side-mod-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--c-text-2);
+  min-width: 0;
+}
+.side-mod-row > span:not(.dot) { min-width: 0; overflow-wrap: anywhere; }
+.side-mod-row .btn { margin-left: auto; flex: none; }
+.side-user {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.side-avatar {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: var(--c-yellow);
+  color: var(--c-ink);
+  font: 900 13px/1 var(--f-cn);
+}
+/* 身份文字：统一 12px / 500（字体回归用例校验） */
+#who { display: block; font: 500 12px/1.35 var(--f-cn); color: var(--c-ink); overflow-wrap: anywhere; }
+.side-user small { display: block; font-size: 11px; color: var(--c-text-3); }
+.side-portal-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--c-white);
+  border: 1px solid var(--c-divider);
+  font: 700 12px/1 var(--f-cn);
+  letter-spacing: .08em;
+  clip-path: var(--cut);
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.side-portal-link:hover { border-color: var(--c-ink); background: var(--c-surface); }
+.side-portal-link small { font: 600 8.5px/1 var(--f-wide); letter-spacing: .18em; color: var(--c-text-3); }
+
+/* ---------------- 桌面收纳态（html[data-nav="collapsed"]） ---------------- */
+[data-nav="collapsed"] .app-sidebar { width: var(--sidebar-w-collapsed); }
+.side-brand-text, .side-nav-label, .side-nav-item > span:not(.nav-no), .side-foot, .nav-badge {
+  transition: opacity .2s ease-out, visibility .2s;
+}
+[data-nav="collapsed"] :is(.side-brand-text, .side-nav-label, .side-nav-item > span:not(.nav-no),
+    .side-nav-item > .nav-badge) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+[data-nav="collapsed"] .side-nav-item { grid-template-columns: 24px 0 0; column-gap: 0; padding: 0 0 0 16px; }
+[data-nav="collapsed"] .side-nav-label { padding-top: 10px; }
+[data-nav="collapsed"] .side-brand img { transform: translate(-1px, 14px) scale(1.05); }
+/* 收纳态底部辅助区彻底退出布局（避免把导航挤出滚动条） */
+.app-sidebar .side-foot {
+  width: var(--sidebar-w);
+  max-height: 320px;
+  overflow: hidden;
+  transition: max-height var(--t-nav), padding var(--t-nav), opacity .2s ease-out, visibility .2s;
+}
+[data-nav="collapsed"] .app-sidebar .side-foot {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top-width: 0;
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* 收纳开关：贴在侧栏脊线上（挂在 .app-shell 下，不被侧栏 overflow 裁切） */
+.side-toggle {
+  position: fixed;
+  top: 16px;
+  left: calc(var(--sidebar-w) - 13px);
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--c-white);
+  color: var(--c-ink);
+  border: 1px solid var(--c-divider);
+  font: 700 14px/1 var(--f-num);
+  cursor: pointer;
+  z-index: 40;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
+  transition: left var(--t-nav), background var(--t-fast), border-color var(--t-fast);
+}
+.side-toggle:hover { background: var(--c-yellow); border-color: var(--c-yellow-2); }
+.side-toggle::before { content: "\2039"; }
+[data-nav="collapsed"] .side-toggle { left: calc(var(--sidebar-w-collapsed) - 13px); }
+[data-nav="collapsed"] .side-toggle::before { content: "\203A"; }
+.side-backdrop { display: none; }
+
+/* ---------------- 主区 ---------------- */
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-white);
+}
+.app-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* 顶栏：面包屑 + 状态芯片 + 时钟 */
+.topbar {
+  position: sticky;
+  top: 3px;
+  z-index: 10;
+  height: calc(var(--topbar-h) - 3px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 32px;
+  background: rgba(255, 255, 255, .92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--c-divider);
+}
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font: 600 10px/1 var(--f-wide);
+  letter-spacing: .18em;
+  color: var(--c-text-3);
+  white-space: nowrap;
+}
+.crumb .sep { color: var(--c-divider); }
+.crumb b { font-family: var(--f-cn); font-size: 13px; letter-spacing: .06em; color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; }
+.topbar-gap { flex: 1; }
+.topbar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--c-divider);
+  background: var(--c-surface);
+  font: 500 11px/1 var(--f-tech);
+  letter-spacing: .06em;
+  color: var(--c-text-2);
+  white-space: nowrap;
+}
+.topbar-clock {
+  font: 500 13px/1 var(--f-mono);
+  letter-spacing: .04em;
+  color: var(--c-text-2);
+  white-space: nowrap;
+}
+.topbar-switch {
+  display: none;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--c-divider);
+  font: 700 12px/1 var(--f-cn);
+  clip-path: var(--cut-sm);
+}
+
+/* 子页头：白色上半 + 黄色色块（区域激活标牌） */
+.page-head {
+  position: relative;
+  padding: 0 32px;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--c-white) 72%, var(--c-yellow) 72%);
+  border-bottom: 4px solid var(--c-divider);
+  animation: nav-enter .3s var(--ef-mech) backwards;
+  flex: none;
+}
+.page-head-inner { position: relative; padding: 28px 0 32px; max-width: var(--page-max); }
+.page-eyebrow { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.page-eyebrow .page-no { font: 300 14px/1 var(--f-num); color: var(--c-text-3); }
+.page-eyebrow .page-en { font: 600 11px/1 var(--f-wide); letter-spacing: .22em; color: var(--c-text-2); }
+.page-eyebrow .page-en::before { content: "// "; letter-spacing: .06em; }
+.page-title {
+  margin: 0;
+  font: 900 var(--fs-3xl)/1.05 var(--f-cn);
+  letter-spacing: .04em;
+  color: var(--c-ink);
+  position: relative;
+}
+.page-desc { margin: 8px 0 0; font-size: 13px; color: var(--c-text-2); position: relative; }
+.page-actions {
+  position: absolute;
+  right: 0;
+  bottom: 30px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.page-plate {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, .06);
+  font: 700 10px/1 var(--f-wide);
+  letter-spacing: .2em;
+  color: var(--c-ink);
+}
+.page-watermark {
+  position: absolute;
+  right: -8px;
+  top: 0;
+  font: 700 140px/.85 var(--f-wide);
+  letter-spacing: -.02em;
+  text-transform: uppercase;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(25, 25, 25, .08);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+/* 内容区 */
+.page-body {
+  flex: 1;
+  padding: 28px 32px 64px;
+  max-width: var(--page-max);
+  width: 100%;
+  min-width: 0;
+  animation: nav-enter .3s var(--ef-mech) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar, .side-toggle, .side-brand img { transition: none; }
+  .page-head, .page-body { animation: none; }
+}
+
+/* ---------------- 窄屏：抽屉导航（独立于桌面收纳偏好） ---------------- */
+@media (max-width: 900px) {
+  html[data-mobile-nav] { overflow: hidden; }
+  .app-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(320px, calc(100vw - 64px));
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    visibility: hidden;
+    transform: translateX(calc(-100% - 24px));
+    transition: transform var(--t-nav), visibility var(--t-nav);
+    z-index: 101;
+    contain: none;
+  }
+  [data-mobile-nav] .app-sidebar { visibility: visible; transform: none; box-shadow: 4px 0 20px rgba(25, 25, 25, .1); }
+  .app-sidebar .side-nav { flex: 0 0 auto; overflow: visible; }
+  .app-sidebar .side-foot { width: auto; max-height: none; overflow: visible; }
+  .side-nav-item { min-height: 48px; }
+  .side-foot button, .side-foot a { min-height: 44px; }
+  .side-toggle {
+    top: 6px;
+    left: 10px;
+    width: 44px;
+    height: 44px;
+    z-index: 102;
+    font: 700 12px/1 var(--f-cn);
+    background: var(--c-surface);
+    white-space: nowrap;
+  }
+  .side-toggle::before { content: "菜单"; }
+  [data-mobile-nav] .side-toggle { left: auto; right: 10px; background: var(--c-white); }
+  [data-mobile-nav] .side-toggle::before { content: "关闭"; }
+  .side-backdrop:not([hidden]) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    padding: 0;
+    background: rgba(25, 25, 25, .3);
+    z-index: 100;
+    cursor: default;
+  }
+  .topbar { padding: 0 12px 0 66px; gap: 8px; }
+  .topbar .topbar-chip.is-optional, .topbar-clock { display: none; }
+  .topbar-switch { display: inline-flex; }
+  .page-head { padding: 0 16px; }
+  .page-body { padding: 20px 16px 48px; }
+  .page-title { font-size: 30px; }
+  .page-watermark { font-size: 80px; }
+  .page-actions { position: static; margin-top: 16px; justify-content: flex-start; }
+  .page-plate { display: none; }
+}
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  .app-sidebar { transition: none; }
+}
+/* 收纳淡出过渡只属于桌面收纳态。窄屏抽屉由隐藏变为显示时，标签与底部区会继承这次可见性变化，
+   若仍带 visibility 过渡，打开后的第一帧它们还算隐藏（读屏与自动化会读到「不可见」）；
+   减少动态效果时也一并关闭。 */
+@media (max-width: 900px), (prefers-reduced-motion: reduce) {
+  .side-brand-text, .side-nav-label, .side-nav-item > span:not(.nav-no), .side-foot, .nav-badge,
+  .app-sidebar .side-foot { transition: none; }
+}

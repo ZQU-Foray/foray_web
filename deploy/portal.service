@@ -1,0 +1,33 @@
+[Unit]
+Description=Foray 战队门户（管理门户 + 调试台，/debug/）
+Documentation=file:///opt/portal/docs/portal-operations.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 与旧调试台一致的运行身份：门户要写 config/（设备注册表、会话、快照库）并调用
+# OpenOCD/串口；udev 规则已把 /dev/ttyACM*、hidraw* 放开为 0666。
+# 降权运行（User=<服务账号> + AmbientCapabilities=CAP_NET_BIND_SERVICE）见运维手册
+# 「渲染」节，如要切换需先把 config/ 属主改给运行用户。
+User=root
+WorkingDirectory=/opt/portal
+# 默认值（可被 .env 覆盖）：systemd 实测 EnvironmentFile= 优先于 Environment=，
+# 因此 portal_tls.py 往 .env 写 WEB_PORT/TLS_ARGS 即可切换端口与 TLS，无需改单元。
+Environment=WEB_HOST=0.0.0.0
+Environment=WEB_PORT=80
+Environment=TLS_ARGS=
+# 凭据与运行参数（600，不入库）：FEISHU_APP_ID / FEISHU_APP_SECRET / WEB_PORT / TLS_ARGS …
+EnvironmentFile=-/opt/portal/.env
+# 显式 PATH：systemd 默认 PATH 不含虚拟环境，OpenOCD 与 python 都靠它解析
+Environment=PATH=/opt/portal/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Restart=on-failure
+RestartSec=3
+
+# 单 worker（硬约束）：门户同步是进程内单例调度，多 worker 会重复拉飞书、
+# 会话与快照写入互相打架。不要给下面的 ExecStart 加 --workers。
+# $TLS_ARGS 为空时 systemd 会整段丢弃（实测），因此明文/HTTPS 共用同一单元。
+ExecStart=/opt/portal/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${WEB_PORT} $TLS_ARGS
+
+[Install]
+WantedBy=multi-user.target

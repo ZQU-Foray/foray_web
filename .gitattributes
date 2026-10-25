@@ -1,0 +1,23 @@
+# 文本统一 LF 入库（Windows 与 WSL 混合开发，避免整文件换行符改动）
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.elf binary
+*.bin binary
+*.pdf binary
+
+# 构建产物与锁文件：diff 里折叠，不计入语言统计
+static/app/** linguist-generated=true -diff
+web/package-lock.json linguist-generated=true -diff

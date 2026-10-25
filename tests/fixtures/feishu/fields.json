@@ -1,0 +1,90 @@
+{
+  "_comment": "匿名 fixture：四张表的字段元数据，模拟 fields API 响应形状（field_id / field_name / type / ui_type / property）。field_id 全部虚构（fldFix 前缀），与 config/feishu.example.json 的映射占位符一一呼应。type 码：1文本 3单选 4多选 5日期 7复选框 11人员 18单向关联 21双向关联。",
+  "projects": {
+    "code": 0, "msg": "success",
+    "data": {"has_more": false, "page_token": "", "total": 8, "items": [
+      {"field_id": "fldFixPrjName01", "field_name": "项目名称", "type": 1, "ui_type": "Text"},
+      {"field_id": "fldFixPrjDesc01", "field_name": "项目说明", "type": 1, "ui_type": "Text"},
+      {"field_id": "fldFixPrjOwnG01", "field_name": "主责组", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "机械"}, {"name": "硬件"}, {"name": "电控"}, {"name": "算法"}, {"name": "运营"}]}},
+      {"field_id": "fldFixPrjColG01", "field_name": "协作组", "type": 4, "ui_type": "MultiSelect",
+       "property": {"options": [{"name": "机械"}, {"name": "硬件"}, {"name": "电控"}, {"name": "算法"}, {"name": "运营"}]}},
+      {"field_id": "fldFixPrjOwner1", "field_name": "负责人", "type": 11, "ui_type": "User",
+       "property": {"user_type": "multiple"}},
+      {"field_id": "fldFixPrjStart1", "field_name": "计划开始", "type": 5, "ui_type": "DateTime",
+       "property": {"date_formatter": "yyyy/MM/dd", "auto_fill": false}},
+      {"field_id": "fldFixPrjEnd011", "field_name": "计划结束", "type": 5, "ui_type": "DateTime",
+       "property": {"date_formatter": "yyyy/MM/dd", "auto_fill": false}},
+      {"field_id": "fldFixPrjStat01", "field_name": "项目状态", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "筹备中"}, {"name": "进行中"}, {"name": "已结束"}, {"name": "已归档"}]}}
+    ]}
+  },
+  "tasks": {
+    "code": 0, "msg": "success",
+    "data": {"has_more": false, "page_token": "", "total": 13, "items": [
+      {"field_id": "fldFixTskName01", "field_name": "事项名称", "type": 1, "ui_type": "Text"},
+      {"field_id": "fldFixTskProj01", "field_name": "所属项目", "type": 18, "ui_type": "SingleLink",
+       "property": {"table_id": "tblFixProjects01", "multiple": false}},
+      {"field_id": "fldFixTskOwnG01", "field_name": "主责组", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "机械"}, {"name": "硬件"}, {"name": "电控"}, {"name": "算法"}, {"name": "运营"}]}},
+      {"field_id": "fldFixTskColG01", "field_name": "协作组", "type": 4, "ui_type": "MultiSelect",
+       "property": {"options": [{"name": "机械"}, {"name": "硬件"}, {"name": "电控"}, {"name": "算法"}, {"name": "运营"}]}},
+      {"field_id": "fldFixTskOwner1", "field_name": "负责人", "type": 11, "ui_type": "User",
+       "property": {"user_type": "multiple"}},
+      {"field_id": "fldFixTskPri001", "field_name": "P等级", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "P0"}, {"name": "P1"}, {"name": "P2"}, {"name": "P3"}]}},
+      {"field_id": "fldFixTskStat01", "field_name": "状态", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "未开始"}, {"name": "进行中"}, {"name": "受阻"}, {"name": "已完成"}, {"name": "已取消"}]}},
+      {"field_id": "fldFixTskStart1", "field_name": "开始时间", "type": 5, "ui_type": "DateTime",
+       "property": {"date_formatter": "yyyy/MM/dd HH:mm", "auto_fill": false}},
+      {"field_id": "fldFixTskDue001", "field_name": "截止时间", "type": 5, "ui_type": "DateTime",
+       "property": {"date_formatter": "yyyy/MM/dd HH:mm", "auto_fill": false}},
+      {"field_id": "fldFixTskDueP01", "field_name": "截止时间精度", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "仅日期"}, {"name": "精确时刻"}]}},
+      {"field_id": "fldFixTskDone01", "field_name": "完成时间", "type": 5, "ui_type": "DateTime",
+       "property": {"date_formatter": "yyyy/MM/dd", "auto_fill": false}},
+      {"field_id": "fldFixTskDesc01", "field_name": "事项说明", "type": 1, "ui_type": "Text"},
+      {"field_id": "fldFixTskBlk001", "field_name": "阻塞说明", "type": 1, "ui_type": "Text"}
+    ]}
+  },
+  "milestones": {
+    "code": 0, "msg": "success",
+    "data": {"has_more": false, "page_token": "", "total": 7, "items": [
+      {"field_id": "fldFixMilName01", "field_name": "节点名称", "type": 1, "ui_type": "Text"},
+      {"field_id": "fldFixMilKind01", "field_name": "节点类型", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "比赛"}, {"name": "关键检查"}]}},
+      {"field_id": "fldFixMilTime01", "field_name": "目标日期时间", "type": 5, "ui_type": "DateTime",
+       "property": {"date_formatter": "yyyy/MM/dd HH:mm", "auto_fill": false}},
+      {"field_id": "fldFixMilPrec01", "field_name": "时间精度", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "仅日期"}, {"name": "精确时刻"}]}},
+      {"field_id": "fldFixMilProj01", "field_name": "所属项目", "type": 18, "ui_type": "SingleLink",
+       "property": {"table_id": "tblFixProjects01", "multiple": false}},
+      {"field_id": "fldFixMilVis001", "field_name": "展示状态", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "展示"}, {"name": "隐藏"}, {"name": "已取消"}]}},
+      {"field_id": "fldFixMilDesc01", "field_name": "节点说明", "type": 1, "ui_type": "Text"}
+    ]}
+  },
+  "schedule": {
+    "code": 0, "msg": "success",
+    "data": {"has_more": false, "page_token": "", "total": 11, "items": [
+      {"field_id": "fldFixSchName01", "field_name": "日程名称", "type": 1, "ui_type": "Text"},
+      {"field_id": "fldFixSchStart1", "field_name": "开始时间", "type": 5, "ui_type": "DateTime",
+       "property": {"date_formatter": "yyyy/MM/dd HH:mm", "auto_fill": false}},
+      {"field_id": "fldFixSchEnd001", "field_name": "结束时间", "type": 5, "ui_type": "DateTime",
+       "property": {"date_formatter": "yyyy/MM/dd HH:mm", "auto_fill": false}},
+      {"field_id": "fldFixSchAllD001", "field_name": "全天", "type": 7, "ui_type": "Checkbox"},
+      {"field_id": "fldFixSchKind01", "field_name": "活动类型", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "例会"}, {"name": "联调"}, {"name": "测试"}, {"name": "其他"}]}},
+      {"field_id": "fldFixSchGrp001", "field_name": "相关组", "type": 4, "ui_type": "MultiSelect",
+       "property": {"options": [{"name": "机械"}, {"name": "硬件"}, {"name": "电控"}, {"name": "算法"}, {"name": "运营"}]}},
+      {"field_id": "fldFixSchPart001", "field_name": "参与人", "type": 11, "ui_type": "User",
+       "property": {"user_type": "multiple"}},
+      {"field_id": "fldFixSchLoc001", "field_name": "地点", "type": 1, "ui_type": "Text"},
+      {"field_id": "fldFixSchProj01", "field_name": "所属项目", "type": 18, "ui_type": "SingleLink",
+       "property": {"table_id": "tblFixProjects01", "multiple": false}},
+      {"field_id": "fldFixSchDesc01", "field_name": "日程说明", "type": 1, "ui_type": "Text"},
+      {"field_id": "fldFixSchStat01", "field_name": "状态", "type": 3, "ui_type": "SingleSelect",
+       "property": {"options": [{"name": "正常"}, {"name": "已取消"}]}}
+    ]}
+  }
+}

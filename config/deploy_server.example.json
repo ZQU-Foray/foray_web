@@ -1,0 +1,7 @@
+{
+  "_comment": "部署目标服务器（deploy.py 默认读取 config/deploy_server.json）。复制本文件为 deploy_server.json 后填入真实值；真实文件被 .gitignore 忽略，勿入库、勿外发。命令行参数与环境变量 DEPLOY_HOST / DEPLOY_SSH_PORT / DEPLOY_USER / DEPLOY_PWD 优先。",
+  "host": "portal.example.com",
+  "ssh_port": 22,
+  "user": "<可 sudo 的服务器账号>",
+  "password": "<SSH 与 sudo 口令>"
+}

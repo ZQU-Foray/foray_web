@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preload" href="/ui/fonts/ForaySans-latin.f0bdbd22cf.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/ui/fonts/ForaySans-common.ac7de56925.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="icon" type="image/png" href="/ui/favicon.png">
+<link rel="stylesheet" href="/ui/fonts/foray-sans.css?v=20260915font1">
+<script>/* 首帧脚本（构建时以内联普通脚本注入每个入口的 <head>，同步执行）。
+ * 只做"首帧防闪"：在 <body> 解析之前把状态写到 <html>，第一帧就是目标状态。
+ * ① 侧栏收纳态：桌面端记忆的收纳偏好 → html[data-nav="collapsed"]；
+ * ② 登录首启：URL 带 boot=1（飞书回调追加）→ 转存会话标记并清理地址栏；
+ * ③ 页间过场：上一页写了 foray.handoff=1 → html[data-handoff="in"]，整屏揭幕入场；
+ * ④ 开机引导：登录成功后的首次进入 → html[data-boot="pending"]（纯 CSS 遮底，
+ *    真正的引导盖由应用挂载后播放，见 shared/bootCover.ts）。
+ * 任何读取失败（隐私模式等）一律跳过动画，绝不困住页面。 */
+(function () {
+  "use strict";
+  var root = document.documentElement;
+  var reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  var mobile = !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+
+  try {
+    if (!mobile && window.localStorage.getItem("foray.nav.collapsed") === "1") {
+      root.setAttribute("data-nav", "collapsed");
+    }
+  } catch (e) { /* 隐私模式：按展开态布局 */ }
+
+  if (/[?&]boot=1\b/.test(location.search)) {
+    try {
+      sessionStorage.setItem("foray.post-login-boot", "1");
+      sessionStorage.setItem("foray.handoff", "1");
+      history.replaceState(null, "",
+        location.pathname +
+        location.search.replace(/([?&])boot=1&?/, "$1").replace(/[?&]$/, "") +
+        location.hash);
+    } catch (e) { /* 忽略：本次不播开机引导 */ }
+  }
+
+  try {
+    if (sessionStorage.getItem("foray.handoff") === "1") {
+      sessionStorage.removeItem("foray.handoff");
+      if (!reduced) root.setAttribute("data-handoff", "in");
+    }
+  } catch (e) { /* 忽略 */ }
+
+  try {
+    if (!reduced && sessionStorage.getItem("foray.post-login-boot") === "1") {
+      root.setAttribute("data-boot", "pending");
+    }
+  } catch (e) { /* 忽略 */ }
+})();
+</script>
+<title>Foray 局域网烧录 / 调试台</title>
+  <script type="module" crossorigin src="/app/assets/debug-DHKn5dIR.js"></script>
+  <link rel="modulepreload" crossorigin href="/app/assets/modulepreload-polyfill-P2Xu9kJm.js">
+  <link rel="modulepreload" crossorigin href="/app/assets/vendor-MGyj-gn2.js">
+  <link rel="modulepreload" crossorigin href="/app/assets/shared-BKS0QF-o.js">
+  <link rel="stylesheet" crossorigin href="/app/assets/shared--cSGD27x.css">
+  <link rel="stylesheet" crossorigin href="/app/assets/debug-mtPBMBKF.css">
+</head>
+<body>
+<div class="app-handoff-cover" aria-hidden="true"></div>
+<div id="app"></div>
+<script defer src="/ui/font-repair.js?v=20260915font1"></script>
+</body>
+</html>

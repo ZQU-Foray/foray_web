@@ -1,0 +1,14 @@
+[Unit]
+Description=门户数据每日备份（config/ + firmware/ + .env + 快照库一致性副本）
+Documentation=file:///opt/portal/docs/portal-operations.md
+
+[Service]
+Type=oneshot
+User=root
+# 备份结果与保留策略都由脚本负责；失败即非零退出，systemd 记入 journal
+ExecStart=/opt/portal/scripts/portal_backup_daily.sh
+Environment=APP_DIR=/opt/portal
+Environment=OUT_ROOT=/opt/portal-backups
+Environment=KEEP=14
+Nice=10
+IOSchedulingClass=idle

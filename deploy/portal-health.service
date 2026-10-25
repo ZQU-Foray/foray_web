@@ -1,0 +1,14 @@
+[Unit]
+Description=门户健康巡检（同机直读快照库 meta，失败即非零退出）
+Documentation=file:///opt/portal/docs/portal-operations.md
+
+[Service]
+Type=oneshot
+User=root
+# 退出码即告警契约：3 不可达 / 4 schema 不匹配 / 5 同步连续失败 / 6 超时未同步
+# 连续失败轮数状态放在 /var/lib（跨次巡检累计）
+ExecStart=/opt/portal/.venv/bin/python /opt/portal/scripts/portal_health.py \
+  --db /opt/portal/config/portal_snapshot.db \
+  --state-file /var/lib/portal-health.state \
+  --fail-streak 3 --stale-sec 600
+# 不设 SuccessExitStatus：非零退出就是"需要人看"，保持可见

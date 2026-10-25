@@ -1,0 +1,10 @@
+[Unit]
+Description=每日 03:30 触发门户备份（错过则开机后补跑）
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

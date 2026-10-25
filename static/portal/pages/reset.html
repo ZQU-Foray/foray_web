@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<link rel="preload" href="/ui/fonts/ForaySans-latin.f0bdbd22cf.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/ui/fonts/ForaySans-common.ac7de56925.woff2" as="font" type="font/woff2" crossorigin>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/ui/sidebar.js?v=20260914mobile1"></script>
+<title>Foray 战队管理门户 · 重设密码</title>
+<link rel="icon" type="image/png" href="/ui/favicon.png">
+<link rel="stylesheet" href="/portal/portal.css?v=20261012a">
+</head>
+<body class="portal app" data-page="reset">
+
+<main class="account-stage">
+  <header class="account-head">
+    <h1>重设<span class="hl">密码</span></h1>
+    <p class="account-sub">飞书已重新验证 · 请在 10 分钟内设置新密码 · <span id="who">—</span></p>
+  </header>
+
+  <section class="p-card account-card">
+    <h2><span class="tag">ACCOUNT / RESET</span>新的本站密码</h2>
+    <p class="p-note" id="rs-note" role="status" hidden></p>
+    <p class="p-empty">
+      重设后其他设备上的旧会话会失效。断网无法通过飞书验证时，请联系维护者在服务器本地重置。
+    </p>
+    <form id="rs-form" autocomplete="off">
+      <label class="p-field">新密码
+        <input id="rs-pass" name="password" type="password" required autocomplete="new-password" autofocus>
+      </label>
+      <label class="p-field">确认新密码
+        <input id="rs-pass2" name="password2" type="password" required autocomplete="new-password">
+      </label>
+      <button class="big" type="submit">重设密码 →</button>
+    </form>
+    <p class="p-empty" id="rs-msg" role="status"></p>
+  </section>
+</main>
+
+<script src="/portal/account.js?v=20260913"></script>
+<script defer src="/ui/font-repair.js?v=20260915font1"></script>
+</body>
+</html>

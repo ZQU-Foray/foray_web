@@ -1,0 +1,16 @@
+[Unit]
+Description=门户 HTTP→HTTPS 跳转（80 → 443）
+Documentation=file:///opt/portal/docs/portal-operations.md
+After=network-online.target portal.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/portal
+ExecStart=/opt/portal/.venv/bin/python /opt/portal/scripts/tls_redirect.py --listen-port 80 --target-port 443
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+# Vllink Basic2 / DAPLink / J-Link 及 CDC 串口权限
+# 安装:
+#   sudo cp 99-vllogic.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   重新插拔设备生效
+
+# Vllink Basic2 CMSIS-DAP（V00.40+ 默认 0x1209:0x6666）
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="6666", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0d28", ATTRS{idProduct}=="0204", MODE="0666"
+KERNEL=="hidraw*", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="6666", MODE="0666"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0d28", ATTRS{idProduct}=="0204", MODE="0666"
+
+# J-Link
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", MODE="0666"
+
+# CDC 串口（Vllink 无线串口 / 有线串口桥）
+KERNEL=="ttyACM[0-9]*", MODE="0666"
+KERNEL=="ttyUSB[0-9]*", MODE="0666"
