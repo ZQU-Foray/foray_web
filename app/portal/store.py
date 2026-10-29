@@ -29,7 +29,7 @@ _conn = None
 # 读侧进程内快照缓存：整库快照按版本只反序列化一次（5000 条记录一次约 60ms）。
 # 键里带版本号，同步/本地重建发布新版本后自动失效，不需要显式广播。
 _read_lock = threading.Lock()
-_snapshot_cache = None        # {"version": int, "data": dict}
+_snapshot_cache = None        # 形如 {"version": 版本号, "data": 快照字典}
 _ro_conn = None               # 只读连接：读快照不抢写锁（WAL 下读写并发安全）
 
 
