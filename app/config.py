@@ -110,8 +110,15 @@ OAUTH_STATE_TTL_SEC = int(os.environ.get("AUTH_OAUTH_STATE_TTL", "600"))
 # ---------- 门户同步与快照（阶段 4） ----------
 PORTAL_DB = Path(os.environ.get("PORTAL_DB", str(BASE_DIR / "config" / "portal_snapshot.db")))
 PORTAL_SYNC_INTERVAL_SEC = int(os.environ.get("PORTAL_SYNC_INTERVAL", "60"))
-PORTAL_SYNC_PAGE_SIZE = int(os.environ.get("PORTAL_SYNC_PAGE_SIZE", "100"))
+# 分页大小：飞书列表/搜索接口 page_size 上限 500，用满可把请求数降到 1/5
+# （记录与字段元数据共用；回退到旧行为用 PORTAL_SYNC_PAGE_SIZE=100）
+PORTAL_SYNC_PAGE_SIZE = min(500, max(1, int(os.environ.get("PORTAL_SYNC_PAGE_SIZE", "500"))))
 PORTAL_SYNC_TIMEOUT_SEC = float(os.environ.get("PORTAL_SYNC_TIMEOUT", "10"))
+# 字段元数据缓存时长（秒）：列名→field_id 对照几乎不变，缓存后每轮不再请求；
+# 配置字段在缓存里缺失时会强制重拉一次再判定，所以改字段名不会被缓存挡住
+PORTAL_FIELDS_CACHE_TTL_SEC = int(os.environ.get("PORTAL_FIELDS_CACHE_TTL", "21600"))
+# 同步失败后的轮级退避：第 n 次连续失败等 interval*2^n，封顶本值（秒）
+PORTAL_SYNC_BACKOFF_MAX_SEC = int(os.environ.get("PORTAL_SYNC_BACKOFF_MAX", "600"))
 PORTAL_SYNC_RETRIES = int(os.environ.get("PORTAL_SYNC_RETRIES", "2"))
 PORTAL_SYNC_BACKOFF_SEC = float(os.environ.get("PORTAL_SYNC_BACKOFF", "1.0"))
 PORTAL_SYNC_STALE_SEC = int(os.environ.get("PORTAL_SYNC_STALE", "180"))
@@ -128,12 +135,18 @@ PORTAL_LINK_BATCH = int(os.environ.get("PORTAL_LINK_BATCH", "100"))
 PORTAL_SYNC_ENABLED = os.environ.get("PORTAL_SYNC_ENABLED", "1") not in ("0", "false", "no")
 
 # ---------- 本地缓存库写入（2026-10-21 第 3 步，设计见 docs/portal-cache-design.md） ----------
-# direct（默认）= 网页写入直写飞书；cache = 先写本地队列、由推送线程推到飞书
-PORTAL_WRITE_MODE = (os.environ.get("PORTAL_WRITE_MODE") or "direct").strip().lower()
-# cache 模式下走队列的表（逗号分隔），用于按表逐步切换
+# cache（默认）= 网页写入先落本地队列、由推送线程推到飞书（页面不等飞书 RTT）；
+# direct = 退回到直写飞书（旧行为，回滚用：Environment=PORTAL_WRITE_MODE=direct）
+PORTAL_WRITE_MODE = (os.environ.get("PORTAL_WRITE_MODE") or "cache").strip().lower()
+# 别名归一：规划/运维文档里"排队"模式也叫 queue，与 cache 同义
+if PORTAL_WRITE_MODE == "queue":
+    PORTAL_WRITE_MODE = "cache"
+# cache 模式下走队列的表（逗号分隔），用于按表逐步切换。
+# members 不在默认列表：考勤签到/签退与零点结算写的是 members 列，属关键路径，
+# 推送失败会让工时账目不一致——这些写入保持直写飞书（仍可显式加进来）。
 PORTAL_CACHE_TABLES = tuple(
     t.strip() for t in (os.environ.get("PORTAL_CACHE_TABLES")
-                        or "tasks,projects,schedule,procurement,members").split(",")
+                        or "tasks,projects,schedule,procurement").split(",")
     if t.strip())
 # 推送线程开关：默认常开（direct 模式下队列通常为空，只空转查询）；关掉后队列不再推送
 PORTAL_PUSH_ENABLED = os.environ.get("PORTAL_PUSH_ENABLED", "1") not in ("0", "false", "no")

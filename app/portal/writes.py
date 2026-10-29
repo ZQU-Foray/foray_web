@@ -1,10 +1,10 @@
 """网页写入的统一出口：按开关决定直写飞书，还是先进本地队列由推送线程推送（缓存库第 3 步）。
 
-- PORTAL_WRITE_MODE=direct（默认）：直写飞书，行为与之前一致；写成功后顺手更新镜像，
+- PORTAL_WRITE_MODE=cache（默认，别名 queue）：入队后立即返回，页面不等飞书 RTT，
+  新建返回本地临时 ID（loc_ 开头），由推送线程按序推到飞书；
+- PORTAL_WRITE_MODE=direct：回滚开关，直写飞书（旧行为）；写成功后顺手更新镜像，
   让以后排队的编辑拿到新鲜的基准。例外：该记录还有未落地的排队操作时也必须排队，
   否则会插到前面的操作之前写进飞书；
-- PORTAL_WRITE_MODE=cache 且表在 PORTAL_CACHE_TABLES 里：入队后立即返回，
-  新建返回本地临时 ID（loc_ 开头）；
 - 冲突规则与队列状态见 cache_rules / cache_store，设计见 docs/portal-cache-design.md。
 """
 import time
@@ -34,8 +34,9 @@ FORCE_COLS = {"members": ("同步时间", "同步说明")}
 
 
 def queued(table):
-    """该表的写入是否走队列。"""
-    return config.PORTAL_WRITE_MODE == "cache" and table in config.PORTAL_CACHE_TABLES
+    """该表的写入是否走队列（queue 是 cache 的别名）。"""
+    return (config.PORTAL_WRITE_MODE in ("cache", "queue")
+            and table in config.PORTAL_CACHE_TABLES)
 
 
 def wake():

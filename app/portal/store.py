@@ -26,6 +26,12 @@ TABLE_ORDER = ("projects", "tasks", "milestones", "schedule", "members", "roster
 _lock = threading.RLock()     # 可重入：status() 持锁调用 get_meta()
 _conn = None
 
+# 读侧进程内快照缓存：整库快照按版本只反序列化一次（5000 条记录一次约 60ms）。
+# 键里带版本号，同步/本地重建发布新版本后自动失效，不需要显式广播。
+_read_lock = threading.Lock()
+_snapshot_cache = None        # {"version": int, "data": dict}
+_ro_conn = None               # 只读连接：读快照不抢写锁（WAL 下读写并发安全）
+
 
 class SchemaVersionError(RuntimeError):
     """快照库 schema 版本不可识别（缺失或与本程序不一致）：拒绝读写。
@@ -97,6 +103,23 @@ def _db():
     return _conn
 
 
+def _ro():
+    """只读连接（mode=ro + query_only）：读快照不去抢写锁 _lock。
+
+    写锁只保护写事务与建表；快照读是纯查询，用独立只读连接后，页面轮询
+    不会与同步/推送的重建互相排队。
+    """
+    global _ro_conn
+    if _ro_conn is None:
+        uri = "file:%s?mode=ro" % str(config.PORTAL_DB)
+        conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.isolation_level = None      # 自动提交：读事务由 current() 显式 BEGIN/COMMIT
+        conn.execute("PRAGMA query_only=1")
+        _ro_conn = conn
+    return _ro_conn
+
+
 def schema_state():
     """诊断用：不抛异常的版本状态（脚本/排障用）。
 
@@ -148,11 +171,15 @@ def maybe_checkpoint(threshold_bytes=4 * 1024 * 1024):
 
 
 def close():
-    global _conn
+    global _conn, _ro_conn
     with _lock:
         if _conn:
             _conn.close()
             _conn = None
+        if _ro_conn:
+            _ro_conn.close()
+            _ro_conn = None
+    drop_snapshot_cache()
 
 
 def get_meta(key, default=None):
@@ -213,6 +240,7 @@ def publish(version, counts, duration, error=None):
             c.execute("INSERT INTO meta(key, value) VALUES(?, ?) "
                       "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                       (k, str(v)))
+    drop_snapshot_cache()       # 新版本已发布：读侧下次按新版本重建缓存
     # 每轮成功后按阈值回收 WAL（阶段 8：实测曾涨到 4MB 不落）
     ran, before, after = maybe_checkpoint()
     if ran:
@@ -234,6 +262,7 @@ def publish_local(version, counts):
                      ("counts", json.dumps(counts, ensure_ascii=False))):
             c.execute("INSERT INTO meta(key, value) VALUES(?, ?) "
                       "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, str(v)))
+    drop_snapshot_cache()
     maybe_checkpoint()
 
 
@@ -260,40 +289,83 @@ def mark_attempt(error_class):
         logging.getLogger("app.portal.store").warning("快照库版本不匹配，跳过状态写入: %s", e)
 
 
+def drop_snapshot_cache():
+    """丢掉进程内快照缓存（发布新版本/关闭库时调用；版本号校验是主要失效手段）。"""
+    global _snapshot_cache
+    with _read_lock:
+        _snapshot_cache = None
+
+
 def current():
-    """读当前快照：{version, tables: {name: [record...]}, quality: [...]}或 None。"""
-    with _lock:
-        ver = int(get_meta("current_version", "0") or 0)
-        if not ver:
-            return None
-        out = {"version": ver, "tables": {}, "quality": []}
-        for t in TABLE_ORDER:
-            rows = _db().execute(
-                "SELECT data FROM snapshot WHERE version=? AND table_name=? "
-                "ORDER BY record_id", (ver, t)).fetchall()
-            out["tables"][t] = [json.loads(r["data"]) for r in rows]
-        for r in _db().execute(
-                "SELECT table_name, record_id, issue FROM quality WHERE version=?",
-                (ver,)):
-            out["quality"].append({"table": r["table_name"],
-                                   "record_id": r["record_id"],
-                                   "issue": r["issue"]})
-        return out
+    """读当前快照：{version, tables: {name: [record...]}, quality: [...]}或 None。
+
+    进程内缓存按 current_version 命中：同一版本只从库里反序列化一次。返回的
+    字典是共享只读对象——调用方要排序/改写时必须先复制，不得原地修改。
+    """
+    global _snapshot_cache
+    ver = int(get_meta("current_version", "0") or 0)
+    if not ver:
+        return None
+    with _read_lock:
+        hit = _snapshot_cache
+    if hit is not None and hit["version"] == ver:
+        return hit["data"]
+    # 版本号与快照必须在同一个只读事务里读：发布是「删旧版本 + 切版本号」的单事务，
+    # 分两次读会读到「新版本号 + 旧版本行已被删」的空快照（并发发布时必现）。
+    with _read_lock:               # 只读连接本身不是线程安全的，单锁串行化读
+        c = _ro()
+        c.execute("BEGIN")
+        try:
+            row = c.execute("SELECT value FROM meta WHERE key='current_version'"
+                            ).fetchone()
+            ver = int(row["value"] or 0) if row else 0
+            if not ver:
+                out = None
+            else:
+                out = {"version": ver, "tables": {}, "quality": []}
+                for t in TABLE_ORDER:
+                    rows = c.execute(
+                        "SELECT data FROM snapshot WHERE version=? AND table_name=? "
+                        "ORDER BY record_id", (ver, t)).fetchall()
+                    out["tables"][t] = [json.loads(r["data"]) for r in rows]
+                for r in c.execute(
+                        "SELECT table_name, record_id, issue FROM quality "
+                        "WHERE version=?", (ver,)):
+                    out["quality"].append({"table": r["table_name"],
+                                           "record_id": r["record_id"],
+                                           "issue": r["issue"]})
+        finally:
+            c.execute("COMMIT")
+    if out is None:
+        return None
+    with _read_lock:
+        _snapshot_cache = {"version": ver, "data": out}
+    return out
 
 
 def status(now=None):
-    """同步状态（§6.3 envelope 用；脱敏：只有错误类别，无内部 URL/令牌）。"""
+    """同步状态（§6.3 envelope 用；脱敏：只有错误类别，无内部 URL/令牌）。
+
+    6 个状态键一次 IN 查询取回：envelope 每个 GET 都要带它，逐键 6 次查询
+    在页面轮询下是纯浪费（原实现 6 次 get_meta）。
+    """
     now = now or time.time()
-    ver = int(get_meta("current_version", "0") or 0)
-    last_ok = float(get_meta("last_success_at", "0") or 0)
+    keys = ("current_version", "last_success_at", "last_attempt_at",
+            "last_duration_sec", "counts", "last_error")
+    with _lock:
+        kv = {r["key"]: r["value"] for r in _db().execute(
+            "SELECT key, value FROM meta WHERE key IN (%s)"
+            % ",".join("?" * len(keys)), keys)}
+    ver = int(kv.get("current_version") or 0)
+    last_ok = float(kv.get("last_success_at") or 0)
     stale = bool(last_ok) and (now - last_ok) > config.PORTAL_SYNC_STALE_SEC
     return {
         "snapshot_version": ver or None,
         "has_snapshot": bool(ver),
-        "last_attempt_at": float(get_meta("last_attempt_at", "0") or 0) or None,
+        "last_attempt_at": float(kv.get("last_attempt_at") or 0) or None,
         "last_success_at": last_ok or None,
-        "last_duration_sec": float(get_meta("last_duration_sec", "0") or 0) or None,
-        "counts": json.loads(get_meta("counts") or "{}"),
-        "last_error": get_meta("last_error") or None,
+        "last_duration_sec": float(kv.get("last_duration_sec") or 0) or None,
+        "counts": json.loads(kv.get("counts") or "{}"),
+        "last_error": kv.get("last_error") or None,
         "stale": stale,
     }
