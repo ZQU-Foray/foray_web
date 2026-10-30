@@ -70,7 +70,7 @@ const devDot = computed(() => {
         <div class="side-mod-head"><span>LINK STATUS</span><b>SRV</b></div>
         <div class="side-mod-row conn" :class="{ online: station.online === true }">
           <span id="conn-dot" :class="connCls" aria-hidden="true"></span>
-          <span id="conn-text">{{ connText }}</span>
+          <span id="conn-text" role="status">{{ connText }}</span>
         </div>
       </div>
       <div class="side-mod side-user">

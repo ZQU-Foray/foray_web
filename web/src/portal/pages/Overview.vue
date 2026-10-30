@@ -137,7 +137,8 @@ const myId = computed(() => {
 });
 
 const pushIssues = computed(() => { const q = queueCounts(); return q.failed + q.conflicts; });
-const plate = "FORAY PORTAL │ " + clockText().slice(0, 10);
+/* 铭牌日期跟随上面的秒级 tick：原先在 setup 里求值一次，开着页面跨零点就不翻（审计 P3） */
+const plate = computed(() => "FORAY PORTAL │ " + clockText(new Date(now.value * 1000)).slice(0, 10));
 </script>
 
 <template>

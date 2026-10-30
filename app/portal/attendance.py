@@ -22,6 +22,8 @@ TZ = ZoneInfo("Asia/Shanghai")
 WEEK_THRESHOLD_HOURS = 30
 # 工时统一保留 4 位小数：明细、合并、增量推送三处口径一致，
 # 否则两次 3.3333h 合并与分推会得到不同结果（审计 P2-1）
+# 达标判定也按这个精度先量化：浮点相减得到的 30.000000000000004 判达标、
+# 29.999999999999996 判未达标，是同一处的两种答案（审计 P3）
 HOURS_DIGITS = 4
 
 # 成员数据表里由门户写入的列（scripts/feishu_attendance_setup.py 按这些列名建列）
@@ -182,7 +184,7 @@ def _bool_judge(text, hours):
         return text == "达标"
     if hours is None:
         return None
-    return hours > WEEK_THRESHOLD_HOURS
+    return round(float(hours), HOURS_DIGITS) > WEEK_THRESHOLD_HOURS
 
 
 def is_checked_in(m, today_start, live=None):

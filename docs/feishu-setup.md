@@ -96,7 +96,7 @@ GET /open-apis/contact/v3/users/{open_id}?user_id_type=open_id   (Bearer tenant_
 
 | 用途 | 接口 | 所需 scope（任一/组合） | 当前应用状态 |
 | --- | --- | --- | --- |
-| 同步四表（应用身份） | tables/fields/records 三接口 | `bitable:app:readonly`（推荐，只读最小） | **已开通（22:16 复验 code 0）** |
+| 同步 8 张表（应用身份） | tables/fields/records 三接口 | `bitable:app:readonly`（推荐，只读最小） | **已开通（22:16 复验 code 0）** |
 | 成员复核（接口） | contact/v3/users/get | `contact:contact.base:readonly`（推荐） | **已开通（22:2x 复验 code 0）** |
 | 成员复核（status 字段） | 同上 | `contact:user.employee:readonly` | **已开通（status 5 键可读）** |
 | 通讯录范围自查 | GET /open-apis/contact/v3/scopes | `contact:contact.base:readonly` 任一 | **已开通（22:2x 复验：8 用户/0 部门/0 用户组）** |
@@ -264,7 +264,9 @@ FEISHU_APP_ID=<app_id> FEISHU_BASE_APP_TOKEN=<app_token> \
 
 1. 令牌：tenant token 缓存复用，过期前 ~5 分钟刷新；并发刷新需单飞（single-flight）。
 2. 分页：page_size=100（fields/tables）/ 500 上限内按需；循环读至 `has_more=false`；以 `total` 对账（工具已验证该语义）。
-3. 限流：全局 ≤20 QPS（文档值），四表 60 秒周期远低于限；429/1254290 退避重试。
+3. 限流：全局 ≤20 QPS（文档值），8 张表 60 秒周期远低于限；429/1254290 退避重试。
+   单轮请求数见 `docs/portal-sync-speedup-plan.md`：字段元数据已按 6 小时缓存，常态一轮只有
+   8 次 records 分页 + 链接补取。
 4. 解析：日期=毫秒时间戳（**UTC 语义，按 Asia/Shanghai 展示换算；纯日期边界用次日 00:00 排他界**，计划 §5.2）；人员取 `id`（open_id），姓名仅展示不入日志；关联取 `record_ids[0]`（单关联）。
 5. 错误分类：99991672=权限缺失（配置告警，非数据为空）；1254302=Base 高级权限；1254030=高级权限未开；2000=回调未配；5 分钟授权码过期仅登录路径。
 6. 安全：日志脱敏复用 `scripts/feishu_verify.py` 的 `mask()`；`tenant_key` 与 open_id 不视为机密，但姓名/邮箱按成员信息处理，不入日志。

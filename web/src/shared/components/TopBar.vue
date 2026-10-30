@@ -20,7 +20,7 @@ const clock = useClock();
     </nav>
     <div class="topbar-gap"></div>
     <slot />
-    <span class="topbar-clock" aria-label="当前时间">{{ clock }}</span>
+    <span class="topbar-clock"><span class="sr-only">当前时间 </span>{{ clock }}</span>
     <a
       v-if="switchHref"
       class="topbar-switch"

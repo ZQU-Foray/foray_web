@@ -109,7 +109,6 @@ class FeishuWriter:
         if not record_id:
             raise SyncError("config", "record_id 为空")
         tid = self._table_id(table_key)
-        base = self.cfg["api_base"]
         self._call(
             "PUT",
             f"/open-apis/bitable/v1/apps/{self.cfg['app_token']}"
