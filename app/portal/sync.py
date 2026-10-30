@@ -255,7 +255,11 @@ class FeishuReader:
             if not nxt or nxt == token:
                 raise SyncError("parse", "记录分页 token 缺失或重复")
             token = nxt
-        if total is not None and len(items) != total:
+        if total is None:
+            # 上游没给 total 时对账等于关闭：至少留一条日志，别让缺页静默通过
+            log.warning("表 %s 未返回 total，本轮不做总数对账（%d 条）", table_id, len(items))
+        elif abs(len(items) - total) > 1:
+            # 容差 1 条：翻页期间别人新增/删除一条会让计数差一，不能因此整轮同步作废
             raise SyncError("parse", f"分页不完整 {len(items)} != total {total}")
         return items
 

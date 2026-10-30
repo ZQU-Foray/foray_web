@@ -9,6 +9,7 @@
 - 端点为同步 def（FastAPI 线程池执行），urllib 同步调用不阻塞事件循环。
 """
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -22,6 +23,17 @@ from .sync import SyncError
 _TOKEN_INVALID = (99991663, 99991661, 99991668)
 # 记录不存在（读单条 / 删除时，2026-10-21 实测返回 HTTP 200 + 该码）
 RECORD_NOT_FOUND = 1254043
+
+# record_id 会直接拼进请求路径，只允许飞书真实形状（rec + 字母数字）。
+# 不校验的话，成员可以塞进 ../ 或 ? 让门户用应用身份代发别的表的请求（审计 P2-6）
+_REMOTE_ID_RE = re.compile(r"^rec[0-9A-Za-z]{1,40}$")
+
+
+def check_record_id(record_id):
+    """校验飞书记录 ID，形状不对直接抛 SyncError，绝不拼进 URL。"""
+    if not isinstance(record_id, str) or not _REMOTE_ID_RE.match(record_id):
+        raise SyncError("config", f"记录 ID 非法：{record_id!r}")
+    return record_id
 
 
 class FeishuWriter:
@@ -90,8 +102,7 @@ class FeishuWriter:
 
         带 automatic_fields 取回飞书修改时间；fields 的键是飞书列名（与写入同一套）。
         """
-        if not record_id:
-            raise SyncError("config", "record_id 为空")
+        check_record_id(record_id)
         tid = self._table_id(table_key)
         try:
             data = self._call(
@@ -106,8 +117,7 @@ class FeishuWriter:
 
     def update(self, table_key, record_id, fields):
         """按记录 ID 更新指定字段（部分更新，未列出的字段不动）。"""
-        if not record_id:
-            raise SyncError("config", "record_id 为空")
+        check_record_id(record_id)
         tid = self._table_id(table_key)
         base = self.cfg["api_base"]
         self._call(
@@ -122,8 +132,7 @@ class FeishuWriter:
 
         记录本来就不存在时返回 False（重推删除不算失败），删掉了返回 True。
         """
-        if not record_id:
-            raise SyncError("config", "record_id 为空")
+        check_record_id(record_id)
         tid = self._table_id(table_key)
         try:
             self._call(

@@ -63,11 +63,22 @@ def is_due_soon(task, now=None):
 
 
 def valid_tasks_for_project(tasks, project_id):
-    """§5.1 有效事项 = 关联该项目且状态 ≠ 已取消（排除质量异常记录）。"""
-    return [t for t in tasks
-            if t.get("project_id") == project_id
-            and t.get("status") != "已取消"
-            and not t.get("_invalid")]
+    """§5.1 有效事项 = 关联该项目且状态 ≠ 已取消（排除质量异常记录）。
+
+    关联列可能同时指向多个项目：只看 project_id 会让「1/2 完成」被算成「1/1」，
+    所以按 project_ids 集合判断，单值记录仍命中（审计 P2-7）。
+    """
+    out = []
+    for t in tasks:
+        if t.get("status") == "已取消" or t.get("_invalid"):
+            continue
+        ids = t.get("project_ids")
+        if ids:
+            if project_id in ids:
+                out.append(t)
+        elif t.get("project_id") == project_id:
+            out.append(t)
+    return out
 
 
 def project_progress(tasks, project_id):

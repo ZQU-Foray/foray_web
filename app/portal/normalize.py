@@ -123,20 +123,28 @@ def _attachments(v):
 
 
 def _link_id(v, expect_table=None):
-    """关联 → (record_id|None)；值异常记录 issue。"""
+    """关联 → (record_id|None, 多值列表)；值异常记录 issue。
+
+    飞书返回的 record_ids 顺序不保证稳定，直接取 [0] 会让同一个多项目事项
+    每次同步换一个 project_id，进而让内容摘要变化、每轮都发新版本（审计 P2-7）。
+    这里按 ID 排序取首个，并让调用方拿到完整列表用于归属统计。
+    """
     if not isinstance(v, list) or not v:
-        return None, None
+        return None, None, []
     first = v[0]
     if isinstance(first, str) and first:
         # 写形状（record_id 字符串数组）：本地视图里排队中的关联就是这个形状
-        return first, None
+        return first, None, [first]
     if not isinstance(first, dict):
-        return None, "关联值形状异常"
-    rids = first.get("record_ids") or []
+        return None, "关联值形状异常", []
+    rids = sorted({r for r in (first.get("record_ids") or []) if isinstance(r, str) and r})
     tid = first.get("table_id")
+    issue = None
     if expect_table and tid and tid != expect_table:
-        return (rids[0] if rids else None), f"关联指向其他表({tid[-6:]})"
-    return (rids[0] if rids else None), None
+        issue = f"关联指向其他表({tid[-6:]})"
+    elif len(rids) > 1:
+        issue = "关联多个值，取 id 最小者"
+    return (rids[0] if rids else None), issue, rids
 
 
 def _date(v):
@@ -218,7 +226,7 @@ class Normalizer:
                 raw_status = ("已完成" if accept == "通过"
                               else "已取消" if accept == "取消" else "进行中")
             status, e_s = _req_enum(raw_status, TASK_STATUSES, "状态")
-            proj, e_l = _link_id(f.get("project"))
+            proj, e_l, proj_ids = _link_id(f.get("project"))
             st, e1 = _date(f.get("start_time"))
             due, e2 = _date(f.get("due_time"))
             done, e3 = _date(f.get("done_time"))
@@ -240,7 +248,7 @@ class Normalizer:
                 bad.append(e_prec)
             rec = {
                 "id": rid, "name": name or "(未命名)",
-                "project_id": proj, "owner_group": group,
+                "project_id": proj, "project_ids": proj_ids, "owner_group": group,
                 "collab_groups": collab if ok_c else [],
                 "owners": _users(f.get("owners")),
                 "priority": pri, "status": status,
@@ -271,7 +279,7 @@ class Normalizer:
             vis, e_v = _opt_enum(f.get("visibility"),
                                  ["展示", "隐藏", "已取消"], "展示状态")
             tgt, e1 = _date(f.get("target_time"))
-            proj, e_l = _link_id(f.get("project"))
+            proj, e_l, proj_ids = _link_id(f.get("project"))
             bad = [m for m in (e_k, e_p, e_v, e1, e_l) if m]
             if not name:
                 bad.append("缺节点名称")
@@ -282,7 +290,7 @@ class Normalizer:
                 "kind": kind,
                 "target": (dict(tgt, precision="date" if prec == "仅日期"
                                 else "datetime") if tgt else None),
-                "project_id": proj, "visibility": vis,
+                "project_id": proj, "project_ids": proj_ids, "visibility": vis,
                 "description": _text(f.get("description")),
             }
             if bad:
@@ -310,7 +318,7 @@ class Normalizer:
             status, e_s = _opt_enum(raw_status, ["正常", "已取消"], "状态")
             st, e1 = _date(f.get("start_time"))
             en, e2 = _date(f.get("end_time"))
-            proj, e_l = _link_id(f.get("project"))
+            proj, e_l, _proj_ids = _link_id(f.get("project"))
             all_day = bool(f.get("all_day"))
             bad = [m for m in (e_k, e_s, e1, e2, e_l) if m]
             if not name:

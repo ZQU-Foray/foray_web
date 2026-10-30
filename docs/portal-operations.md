@@ -516,7 +516,46 @@ systemctl start portal.service
 - **推送线程卡住或飞书持续不可写**：改动会留在队列里，重启服务也不会丢，恢复后自动推送。
   积压超过 15 分钟，巡检报 8。
 
-## 9. 未完成项与已知限制（阶段 8 更新，如实）
+## 9. 服务账号与降权运行（2026-10-30 起，审计 P2-11）
+
+门户以前以 `root` 运行，一个上传或模板漏洞就等于交出整台服务器。现在四个单元都跑在专用
+服务账号 `portal` 下，需要绑定 80/443 的那两个只单独授予 `CAP_NET_BIND_SERVICE`。
+
+| 单元 | 运行身份 | 额外授权 | 原因 |
+| --- | --- | --- | --- |
+| `portal.service` | `portal` | `AmbientCapabilities=CAP_NET_BIND_SERVICE`、`NoNewPrivileges=yes` | 绑 80，写 `config/`、`firmware/` |
+| `portal-redirect.service` | `portal` | 同上 | 绑 80 做 80→443 跳转 |
+| `portal-backup.service` | `portal` | 无 | 只读 `/opt/portal`（含 `.env` 600）、写 `/opt/portal-backups` |
+| `portal-health.service` | `portal` | `StateDirectory=portal-health` | 只读快照库，状态文件在 `/var/lib/portal-health/state.json` |
+
+- 账号与目录由 `deploy.py` 的 `ensure_service_account()` 自动准备（幂等）：建组/建用户
+  （`--system --no-create-home --shell /usr/sbin/nologin`）、把 `config/`、`firmware/`、`.env`
+  交接给 `portal`、`install -d -o portal -g portal /opt/portal-backups`。
+- 串口与 hidraw 不受影响：udev 规则已放开为 0666，服务账号照样能调 OpenOCD。
+- **状态文件路径变更**：健康巡检的连续失败计数从 `/var/lib/portal-health.state` 移到
+  `/var/lib/portal-health/state.json`。首次切换等于计数归零（不会误报，也不会漏报）；
+  旧的 `/var/lib/portal-health.state` 可删。
+- 老服务器手工切换（不跑 deploy.py 时）：
+
+```bash
+sudo groupadd -f portal
+sudo useradd --system --gid portal --home-dir /opt/portal --no-create-home \
+    --shell /usr/sbin/nologin --comment 'foray 门户服务' portal
+sudo chown -R portal:portal /opt/portal/config /opt/portal/firmware
+sudo chown portal:portal /opt/portal/.env && sudo chmod 600 /opt/portal/.env
+sudo install -d -o portal -g portal -m 750 /opt/portal-backups
+sudo cp /opt/portal/deploy/portal.service /etc/systemd/system/ && sudo systemctl daemon-reload
+sudo systemctl restart portal.service && systemctl is-active portal.service
+```
+
+- 回滚：把上述四个单元的 `User=`/`Group=`/`AmbientCapabilities=`/`StateDirectory=` 改回原来的
+  `User=root`（health 的 `--state-file` 同时改回 `/var/lib/portal-health.state`），
+  `systemctl daemon-reload && systemctl restart portal.service`。属主不用改回——`root` 能读 `portal`
+  的目录，只是不再需要写权限。
+- 排查：`sudo -u portal test -w /opt/portal/config && echo 可写`、`journalctl -u portal.service -b`
+  首行会显示实际运行用户；权限问题典型报错是 `PermissionError: /opt/portal/config/...`。
+
+## 10. 未完成项与已知限制（阶段 8 更新，如实）
 
 1. **无 HTTPS**（维护者决定）：门户以 `http://portal.example.com/` 提供，凭据与会话 Cookie 走明文；
    若后续要上 HTTPS，需同时改 `.env` 的 `FEISHU_REDIRECT_URL` 与开放平台登记值，并给

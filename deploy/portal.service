@@ -6,11 +6,15 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-# 与旧调试台一致的运行身份：门户要写 config/（设备注册表、会话、快照库）并调用
-# OpenOCD/串口；udev 规则已把 /dev/ttyACM*、hidraw* 放开为 0666。
-# 降权运行（User=<服务账号> + AmbientCapabilities=CAP_NET_BIND_SERVICE）见运维手册
-# 「渲染」节，如要切换需先把 config/ 属主改给运行用户。
-User=root
+# 降权运行：门户只写 config/ 与 firmware/，用专用服务账号 portal 跑，
+# 被攻破也拿不到 root（审计 P2-11）。需要绑定 80/443，靠 AmbientCapabilities 单独授权，
+# 不因此把整个进程提权。config/ 与 firmware/ 的属主由 deploy.py 交接给 portal。
+User=portal
+Group=portal
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+# 串口与 hidraw 由 udev 规则放开为 0666，不需要额外 root 能力
+NoNewPrivileges=yes
 WorkingDirectory=/opt/portal
 # 默认值（可被 .env 覆盖）：systemd 实测 EnvironmentFile= 优先于 Environment=，
 # 因此 portal_tls.py 往 .env 写 WEB_PORT/TLS_ARGS 即可切换端口与 TLS，无需改单元。

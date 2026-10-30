@@ -4,7 +4,10 @@ Documentation=file:///opt/portal/docs/portal-operations.md
 
 [Service]
 Type=oneshot
-User=root
+# 备份只读 /opt/portal（含 .env 600）并写 /opt/portal-backups，两者属主都是 portal；
+# 不再需要 root 跑备份脚本（审计 P2-11）
+User=portal
+Group=portal
 # 备份结果与保留策略都由脚本负责；失败即非零退出，systemd 记入 journal
 ExecStart=/opt/portal/scripts/portal_backup_daily.sh
 Environment=APP_DIR=/opt/portal

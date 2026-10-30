@@ -313,6 +313,10 @@ def current():
     # 版本号与快照必须在同一个只读事务里读：发布是「删旧版本 + 切版本号」的单事务，
     # 分两次读会读到「新版本号 + 旧版本行已被删」的空快照（并发发布时必现）。
     with _read_lock:               # 只读连接本身不是线程安全的，单锁串行化读
+        # 抢锁期间别人可能已经解析完同一版本：拿到锁再确认一次，避免 N 个线程各解析一遍
+        hit = _snapshot_cache
+        if hit is not None and hit["version"] == ver:
+            return hit["data"]
         c = _ro()
         c.execute("BEGIN")
         try:
@@ -336,10 +340,8 @@ def current():
                                            "issue": r["issue"]})
         finally:
             c.execute("COMMIT")
-    if out is None:
-        return None
-    with _read_lock:
-        _snapshot_cache = {"version": ver, "data": out}
+        # 缓存在同一把锁里写回：否则刚解析完还没登记，下一个线程又会重解析一遍
+        _snapshot_cache = None if out is None else {"version": ver, "data": out}
     return out
 
 

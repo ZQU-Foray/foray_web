@@ -39,6 +39,18 @@ def queued(table):
             and table in config.PORTAL_CACHE_TABLES)
 
 
+def _check_remote_id(table, record_id):
+    """直写前的记录 ID 体检：临时 ID 不该走到飞书，其他形状一律拒绝。
+
+    临时 ID（loc_）说明新建还没推出去，直写会拼出一个不存在的路径；
+    其余非法字符同样会被拼进 URL，属于能用应用身份访问别的表的入口（审计 P2-6）。
+    """
+    if rules.is_local_id(record_id):
+        raise ValueError("记录还在同步队列里，请稍后重试")
+    portal_writer.check_record_id(record_id)
+    return record_id
+
+
 def wake():
     # 延迟导入：pusher 依赖本模块的列配置
     from . import pusher
@@ -75,6 +87,7 @@ def update(table, record_id, cols, by=None):
         cache_store.enqueue_update(table, record_id, cols, by=by)
         changed(True)
         return True
+    _check_remote_id(table, record_id)
     portal_writer.FeishuWriter().update(table, record_id, cols)
     _quietly(cache_store.patch_mirror, table, record_id, cols)
     changed(False)
@@ -87,6 +100,7 @@ def delete(table, record_id, by=None):
         cache_store.enqueue_delete(table, record_id, WATCH_COLS.get(table, ()), by=by)
         changed(True)
         return True
+    _check_remote_id(table, record_id)
     portal_writer.FeishuWriter().delete(table, record_id)
     _quietly(cache_store.drop_mirror, table, record_id)
     changed(False)
