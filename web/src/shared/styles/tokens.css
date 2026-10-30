@@ -43,10 +43,10 @@
   --c-magenta:  #FF00F0;
 
   /* ---- 语义色（只用于状态） ---- */
-  --c-ok:       #128A45;
+  --c-ok:       #0F7A3D;   /* 加深到 #0F7A3D：原 #128A45 在纸底/浅绿底上不足 4.5:1 */
   --c-ok-bg:    #E6F4EC;
   --c-ok-line:  #AADCC0;
-  --c-warn:     #B26A00;
+  --c-warn:     #975A00;   /* 加深到 #975A00：原 #B26A00 在浅橙底上不足 4.5:1 */
   --c-warn-bg:  #FFF5E6;
   --c-warn-line:#FFCF80;
   --c-danger:   #D42B23;
