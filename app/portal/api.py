@@ -2013,7 +2013,16 @@ def attendance_check_out(request: Request):
     if session_sec < _MIN_SESSION_SEC:
         raise HTTPException(422, "签到不足 1 分钟，稍后再签退（防误触）")
     session_h = session_sec / 3600.0
-    total = round((m.get("work_hours") or 0) + session_h, 2)
+    # 基数取飞书实时值而不是快照：快照落后一轮同步时，连续两次签退会互相覆盖，
+    # 后一次把前一次的时长抹掉（审计 P1-2）。读不到实时值就不写，宁可让用户重试。
+    live = _feishu_member_fields(m["id"])
+    if live is None:
+        raise HTTPException(503, "暂时读不到飞书实时工时，本次签退未提交，请稍后重试")
+    try:
+        base_hours = float(live.get(attendance.COL_WORK))
+    except (TypeError, ValueError):
+        raise HTTPException(503, "飞书实时工时不是数字，请先核对成员记录再签退") from None
+    total = round(base_hours + session_h, attendance.HOURS_DIGITS)
     anomalous = session_sec > _ANOMALY_SESSION_SEC
     cols = {"最近签退": int(now * 1000),
             "有效时长（小时）": total,
@@ -2024,9 +2033,17 @@ def attendance_check_out(request: Request):
     # 起点取本次签退前的累计时长，本次会话（签到在今天零点之后）完整计入本周。
     if _week_cols_ready():
         _, _, this_key, last_key = attendance.week_bounds(now)
-        roll = attendance.rollover_updates(m.get("work_hours"), m.get("week_base"),
-                                           m.get("week_key"), this_key, last_key)
+        # 换周基准同样取飞书实时值：否则周末未同步的工时会被算进"上周"，
+        # 本周时长凭空多出来（审计 P1-3）
+        roll = attendance.rollover_updates(live.get(attendance.COL_WORK),
+                                           live.get(attendance.COL_WEEK_BASE),
+                                           live.get(attendance.COL_WEEK_KEY),
+                                           this_key, last_key)
         if roll:
+            week_base = roll.get(attendance.COL_WEEK_BASE)
+            if week_base is not None and not (0 <= float(week_base) <= total):
+                raise HTTPException(503, "换周基准异常（周初时长超过当前累计），"
+                                         "本次签退未提交，请联系维护者核对工时")
             cols.update(roll)
     try:
         portal_writer.FeishuWriter().update("members", m["id"], cols)
@@ -2128,6 +2145,12 @@ def _check_out_cached(request, open_id, m):
     hours = closed["hours"]
     _audit("attendance_check_out", record=rid, by=open_id, hours=round(hours, 2),
            ip=request.client.host, queued=True)
-    est = round(((m or {}).get("work_hours") or 0) + hours, 2)
+    # 回显用本地视图（镜像 ⊕ 未落地操作），而不是可能落后一轮同步的快照，
+    # 否则连续两次签退页面上会出现工时"回退"（审计 P2-3）
+    try:
+        _lv = cache_store.local_view("members", rid) or {}
+        est = round(float(_lv.get(attendance.COL_WORK) or 0), attendance.HOURS_DIGITS)
+    except (cache_store.RecordUnknown, TypeError, ValueError):
+        est = round(hours, attendance.HOURS_DIGITS)
     return {"ok": True, "session_hours": round(hours, 2), "work_hours": est,
             "anomalous": anomalous, "queued": True, "sync_triggered": False}

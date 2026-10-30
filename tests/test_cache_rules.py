@@ -100,8 +100,10 @@ class PlanUpdateTests(unittest.TestCase):
         self.assertEqual(p.conflicts, [])
 
     def test_increment_on_empty_remote(self):
+        # 没有入队基准（升级前的老数据）时仍按旧口径累加；
+        # 精度改为与明细一致的 4 位小数（审计 P2-1）
         p = R.plan_update({}, {}, {}, increments={"有效时长（小时）": 0.256})
-        self.assertEqual(p.push, {"有效时长（小时）": 0.26})
+        self.assertEqual(p.push, {"有效时长（小时）": 0.256})
 
 
 class PlanDeleteTests(unittest.TestCase):
