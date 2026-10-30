@@ -7,7 +7,7 @@
 > 保留在 `/opt/stm32-webserver`，作为一键回滚目标（`webserver.service`，当前 inactive）。
 > 本文件覆盖：上线形态（§A）、部署与升级（§B）、备份与恢复（§C）、凭据轮换（§D）、
 > 监控与巡检（§E）、应急账号（§1）、会话与数据文件（§2）、飞书配置（§3）、访问模型（§4）、
-> CLI（§5）、回退方式（§6）、常见故障（§7）、同步与快照（§8）、未完成项（§9）。
+> CLI（§5）、回退方式（§6）、常见故障（§7）、同步与快照（§8）、服务账号与降权（§9）、设备访问策略（§10）、未完成项（§11）。
 
 ## A. 上线形态（2026-09-10 切换后实测）
 
@@ -522,7 +522,46 @@ systemctl start portal.service
 - **直写签退（`PORTAL_WRITE_MODE=direct`）的基数取飞书实时值**：读不到实时工时直接返回 503
   且不写入，不再用可能落后一轮同步的快照累加（否则连续两次签退会互相覆盖）。
 
-## 9. 设备访问策略（2026-10-30 起，审计 P1-5）
+## 9. 服务账号与降权运行（2026-10-30 起，审计 P2-11）
+
+门户以前以 `root` 运行，一个上传或模板漏洞就等于交出整台服务器。现在四个单元都跑在专用
+服务账号 `portal` 下，需要绑定 80/443 的那两个只单独授予 `CAP_NET_BIND_SERVICE`。
+
+| 单元 | 运行身份 | 额外授权 | 原因 |
+| --- | --- | --- | --- |
+| `portal.service` | `portal` | `AmbientCapabilities=CAP_NET_BIND_SERVICE`、`NoNewPrivileges=yes` | 绑 80，写 `config/`、`firmware/` |
+| `portal-redirect.service` | `portal` | 同上 | 绑 80 做 80→443 跳转 |
+| `portal-backup.service` | `portal` | 无 | 只读 `/opt/portal`（含 `.env` 600）、写 `/opt/portal-backups` |
+| `portal-health.service` | `portal` | `StateDirectory=portal-health` | 只读快照库，状态文件在 `/var/lib/portal-health/state.json` |
+
+- 账号与目录由 `deploy.py` 的 `ensure_service_account()` 自动准备（幂等）：建组/建用户
+  （`--system --no-create-home --shell /usr/sbin/nologin`）、把 `config/`、`firmware/`、`.env`
+  交接给 `portal`、`install -d -o portal -g portal /opt/portal-backups`。
+- 串口与 hidraw 不受影响：udev 规则已放开为 0666，服务账号照样能调 OpenOCD。
+- **状态文件路径变更**：健康巡检的连续失败计数从 `/var/lib/portal-health.state` 移到
+  `/var/lib/portal-health/state.json`。首次切换等于计数归零（不会误报，也不会漏报）；
+  旧的 `/var/lib/portal-health.state` 可删。
+- 老服务器手工切换（不跑 deploy.py 时）：
+
+```bash
+sudo groupadd -f portal
+sudo useradd --system --gid portal --home-dir /opt/portal --no-create-home \
+    --shell /usr/sbin/nologin --comment 'foray 门户服务' portal
+sudo chown -R portal:portal /opt/portal/config /opt/portal/firmware
+sudo chown portal:portal /opt/portal/.env && sudo chmod 600 /opt/portal/.env
+sudo install -d -o portal -g portal -m 750 /opt/portal-backups
+sudo cp /opt/portal/deploy/portal.service /etc/systemd/system/ && sudo systemctl daemon-reload
+sudo systemctl restart portal.service && systemctl is-active portal.service
+```
+
+- 回滚：把上述四个单元的 `User=`/`Group=`/`AmbientCapabilities=`/`StateDirectory=` 改回原来的
+  `User=root`（health 的 `--state-file` 同时改回 `/var/lib/portal-health.state`），
+  `systemctl daemon-reload && systemctl restart portal.service`。属主不用改回——`root` 能读 `portal`
+  的目录，只是不再需要写权限。
+- 排查：`sudo -u portal test -w /opt/portal/config && echo 可写`、`journalctl -u portal.service -b`
+  首行会显示实际运行用户；权限问题典型报错是 `PermissionError: /opt/portal/config/...`。
+
+## 10. 设备访问策略（2026-10-30 起，审计 P1-5）
 
 调试台的设备连接目标（VLLINK TCP 的 `host`）现在过网段白名单，堵的是「任意登录者把
 host 改成内网任意地址，再借门户的探活/串口通道做横向探测」这条链。三处入口一致校验：
@@ -537,7 +576,7 @@ host 改成内网任意地址，再借门户的探活/串口通道做横向探�
 - 局域网扫描 `POST /api/v2/devices/scan` 降为组长专用（复用门户组长名单，应急调试身份放行），
   并有 `SCAN_COOLDOWN_SEC`（默认 60 秒）冷却，冷却期内返回 429 与剩余秒数。
 
-## 10. 未完成项与已知限制（阶段 8 更新，如实）
+## 11. 未完成项与已知限制（阶段 8 更新，如实）
 
 1. **无 HTTPS**（维护者决定）：门户以 `http://portal.example.com/` 提供，凭据与会话 Cookie 走明文；
    若后续要上 HTTPS，需同时改 `.env` 的 `FEISHU_REDIRECT_URL` 与开放平台登记值，并给

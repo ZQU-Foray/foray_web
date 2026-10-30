@@ -110,7 +110,9 @@ def classify(path: str) -> str:
         return "debug_api"
     if path.startswith("/ws/"):
         return "ws"
-    return "public"                          # 其余（未来路由）默认最低公开
+    # 其余（未来新增路由）一律按管理接口处理：默认拒绝比默认公开安全，
+    # 新接口忘记登记只会「不够用」，不会「白送」（审计 P2-9）
+    return "admin_api"
 
 
 def _decision(path_kind: str, role: str, state: str,

@@ -6,7 +6,12 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
+# 只做 80 → 443 跳转：降权到服务账号，仅保留绑定 80 的单项能力（审计 P2-11）
+User=portal
+Group=portal
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
 WorkingDirectory=/opt/portal
 ExecStart=/opt/portal/.venv/bin/python /opt/portal/scripts/tls_redirect.py --listen-port 80 --target-port 443
 Restart=on-failure

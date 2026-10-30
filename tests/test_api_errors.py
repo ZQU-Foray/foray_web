@@ -13,14 +13,23 @@ from app.portal import api
 
 
 class _FakeUpload:
+    """最小上传对象：`read(size)` 按 S5 的分块读取契约分片返回（1MiB 一块）。"""
+
     filename = "shot.png"
     content_type = "image/png"
 
-    async def read(self):
-        return b"fake-image-bytes"
+    def __init__(self, data=b"fake-image-bytes"):
+        self._data = data
+        self.closed = False
+
+    async def read(self, size=-1):
+        if size is None or size < 0:
+            size = len(self._data)
+        chunk, self._data = self._data[:size], self._data[size:]
+        return chunk
 
     async def close(self):
-        return None
+        self.closed = True
 
 
 class _FakeWriter:

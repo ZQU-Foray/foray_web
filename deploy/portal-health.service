@@ -4,11 +4,15 @@ Documentation=file:///opt/portal/docs/portal-operations.md
 
 [Service]
 Type=oneshot
-User=root
+# 只读快照库 + 写一份状态文件：降权到服务账号，状态目录交给 systemd 创建（审计 P2-11）
+User=portal
+Group=portal
+StateDirectory=portal-health
+StateDirectoryMode=0750
 # 退出码即告警契约：3 不可达 / 4 schema 不匹配 / 5 同步连续失败 / 6 超时未同步
 # 连续失败轮数状态放在 /var/lib（跨次巡检累计）
 ExecStart=/opt/portal/.venv/bin/python /opt/portal/scripts/portal_health.py \
   --db /opt/portal/config/portal_snapshot.db \
-  --state-file /var/lib/portal-health.state \
+  --state-file /var/lib/portal-health/state.json \
   --fail-streak 3 --stale-sec 600
 # 不设 SuccessExitStatus：非零退出就是"需要人看"，保持可见

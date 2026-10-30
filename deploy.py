@@ -59,6 +59,10 @@ LEGACY_UNIT = "webserver.service"
 BACKUP_ROOT = "/opt/portal-backups"
 REMOTE_PKG = "/tmp/portal-deploy.tar.gz"
 REMOTE_EXTRACT = "/tmp/portal-extract"
+# 门户服务账号：systemd 单元以它运行（降权，审计 P2-11）。
+# 它需要写 config/（设备注册表、会话、快照库）、firmware/ 与备份目录。
+SERVICE_USER = "portal"
+DATA_DIRS = ("config", "firmware")
 
 # 打包排除目录（相对仓库根的完整路径，或任意层级的目录名）
 EXCLUDE_DIRS = {".venv", "venv", ".git", "__pycache__", ".mypy_cache", ".pytest_cache",
@@ -298,6 +302,30 @@ def make_runner(cli, pwd):
     return run
 
 
+def ensure_service_account(run):
+    """确保服务账号与服务目录就位（幂等）。
+
+    建错或早退都不能影响老部署：账号已存在就跳过，目录不存在就跳过 chown。
+    storage 目录交给服务账号后，root 仍能读（属主组 root 有读权限），
+    restore_previous 的 chown --reference=config 也会自动跟随。
+    """
+    run.must("groupadd -f %s && (id -u %s >/dev/null 2>&1 || "
+             "useradd --system --gid %s --home-dir %s --no-create-home "
+             "--shell /usr/sbin/nologin --comment 'foray 门户服务' %s)"
+             % (SERVICE_USER, SERVICE_USER, SERVICE_USER, PORTAL_DIR, SERVICE_USER),
+             "创建服务账号", sudo=True)
+    for name in DATA_DIRS:
+        run.must("chown -R %s:%s %s/%s 2>/dev/null; true"
+                 % (SERVICE_USER, SERVICE_USER, PORTAL_DIR, name),
+                 "交接 %s/ 属主" % name, sudo=True)
+    run.must("[ -f %s/.env ] && chown %s:%s %s/.env && chmod 600 %s/.env; true"
+             % (PORTAL_DIR, SERVICE_USER, SERVICE_USER, PORTAL_DIR, PORTAL_DIR),
+             "交接 .env 属主", sudo=True)
+    run.must("install -d -o %s -g %s -m 750 %s" % (SERVICE_USER, SERVICE_USER, BACKUP_ROOT),
+             "准备备份目录", sudo=True)
+    print("  服务账号 %s 就绪（config/ firmware/ .env 备份目录已授权）" % SERVICE_USER)
+
+
 def preflight_sudo(run):
     """预检 sudo：不可用就早停，别等装到一半才发现。"""
     code, out, err = run("sudo -S -p '' true && echo SUDO_OK", show=False,
@@ -490,6 +518,8 @@ def portal_deploy(args, run, cli):
              % (args.user, args.user, PORTAL_DIR, PORTAL_DIR), "交接属主", sudo=True)
     run.must("test -f %s/deploy/%s" % (PORTAL_DIR, PORTAL_UNIT),
              "代码树缺少 deploy/%s" % PORTAL_UNIT, sudo=True)
+    # 单元里的 User=portal 必须真的存在，否则 systemd 起不来；数据目录也要交给它
+    ensure_service_account(run)
 
     if args.seed_data:
         print("  迁移既有数据（缺什么补什么，不覆盖已存在项）...")

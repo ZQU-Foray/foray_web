@@ -1005,6 +1005,11 @@ def write_task_update(record_id: str, body: dict, request: Request):
         task = _snapshot_record("tasks", record_id)
         if task and task.get("status") == "已完成":
             raise HTTPException(403, "已完成（已归档）的事项只有组长能修改或重新打开")
+        # 归属校验：组员只能动自己组的事项，否则知道 record_id 就能改别组进度（审计 P2-5）
+        if task is not None:
+            owner_group = task.get("owner_group") or task.get("group")
+            if owner_group and owner_group not in groups:
+                raise HTTPException(403, "只能修改本组的事项")
     else:                                            # 组长：可改集合（不含赛季）
         illegal = keys - {"name", "description", "owner_group", "priority", "owners",
                           "start_time", "due_time", "submit_time",
@@ -1414,6 +1419,33 @@ def _procurement_upload_and_attach(data, filename, content_type, record_id, colu
     return token
 
 
+async def _read_limited(file, limit, col_name):
+    """分块读上传内容，超过 limit 立刻放弃（审计 P2-8）。
+
+    以前是 read() 全读进内存再看大小，等于让上传方决定进程吃多少内存：
+    一个 500MB 的请求就能把单 worker 门户顶死。这里按 1MiB 分块累计，
+    一超限就关流并 422，异常路径统一在这里关文件。
+    """
+    chunks = []
+    size = 0
+    try:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > limit:
+                raise HTTPException(422,
+                                    f"{col_name}超过 {limit // 1024 // 1024}MB 上限")
+            chunks.append(chunk)
+    finally:
+        await file.close()
+    data = b"".join(chunks)
+    if not data:
+        raise HTTPException(422, "上传内容为空")
+    return data
+
+
 @router.post("/write/procurement/{record_id}/attachments")
 async def write_procurement_upload(record_id: str, request: Request,
                                    file: UploadFile = File(...), column: str = "image"):
@@ -1441,12 +1473,7 @@ async def write_procurement_upload(record_id: str, request: Request,
                       (column == "invoice" and ctype == "application/pdf")):
         await file.close()
         raise HTTPException(422, f"文件类型不符：{ctype}")
-    data = await file.read()
-    await file.close()
-    if not data:
-        raise HTTPException(422, "上传内容为空")
-    if len(data) > limit:
-        raise HTTPException(422, f"{col_name}超过 {limit // 1024 // 1024}MB 上限")
+    data = await _read_limited(file, limit, col_name)
     try:
         token = await asyncio.to_thread(
             _procurement_upload_and_attach, data, name, file.content_type,
@@ -1908,7 +1935,7 @@ def attendance_leave(body: dict, request: Request):
     """组长给成员设 / 取消本周请假（body: {"record_id": 成员数据表记录, "on": true/false}）。
 
     请假那周没达标、当天没签到都显示「请假」，下周自动恢复（见 attendance.py 口径）。"""
-    open_id, _ = _require_leader(request)
+    open_id, leader_groups = _require_leader(request)
     if not _leave_ready():
         raise HTTPException(503, "飞书成员数据表还没建「请假周」列"
                                  "（管理员运行 scripts/feishu_attendance_setup.py --write-config）")
@@ -1921,6 +1948,15 @@ def attendance_leave(body: dict, request: Request):
     m = next((x for x in (snap.get("tables", {}).get("members") or []) if x.get("id") == rid), None)
     if m is None or not m.get("member"):
         raise HTTPException(404, "成员数据表里没有这条记录")
+    # 归属校验：组长只能给自己组的人记请假（审计 P2-5）。
+    # 成员数据表里没有组别列，按花名册的成员名单反查该 open_id 属于哪些组。
+    member_open_id = (m.get("member") or {}).get("id") or ""
+    member_groups = {r.get("group") for r in (snap.get("tables", {}).get("roster") or [])
+                     if any((u or {}).get("id") == member_open_id
+                            for u in (r.get("members") or []))}
+    member_groups.discard(None)
+    if member_groups and not (member_groups & set(leader_groups)):
+        raise HTTPException(403, "只能给自己组的成员记请假")
     _, _, this_key, last_key = attendance.week_bounds()
     value = attendance.leave_value(m.get("leave_weeks"), on, this_key, last_key)
     queued = _gateway(writes.update, "members", rid, {attendance.COL_LEAVE: value},
