@@ -131,9 +131,12 @@ async function probeCurrentDevice(): Promise<void> {
   }
 }
 
+let probeTimer = 0;
+
 export function startDeviceProbe(): void {
+  if (probeTimer) return;
   void probeCurrentDevice();
-  window.setInterval(() => { void probeCurrentDevice(); }, 5000);
+  probeTimer = window.setInterval(() => { void probeCurrentDevice(); }, 5000);
 }
 
 /* ===== 手动添加 / 扫描 STA ===== */

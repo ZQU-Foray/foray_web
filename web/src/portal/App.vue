@@ -95,7 +95,7 @@ async function onLogout() {
         <div class="side-mod-head"><span>SYNC</span><b>FS</b></div>
         <div class="side-mod-row">
           <span class="dot" :class="dotTone" aria-hidden="true"></span>
-          <span id="sync-line" :class="line.cls">{{ line.text }}</span>
+          <span id="sync-line" role="status" :class="line.cls">{{ line.text }}</span>
         </div>
         <div v-if="needsAttention" class="side-mod-row" style="margin-top: 4px">
           <RouterLink id="sync-queue-link" to="/quality" class="lnk t-micro">查看推送失败与冲突 →</RouterLink>

@@ -41,11 +41,17 @@ class MemberStatisticsTests(unittest.TestCase):
         self.assertEqual(got["有效时长（小时）"], 0)
         self.assertIsNone(got["最近签到"])
 
-    def test_attendance_failure_preserves_previous_snapshot(self):
-        """考勤失败时只更新同步元数据，不覆盖上次成功的考勤快照；且不再依赖按日明细表。"""
+    def test_member_sync_no_longer_touches_attendance(self):
+        """考勤改由门户打卡管理后，本程序不再调用考勤接口、也不再写考勤列。
+
+        历史实现会拉考勤明细并把「有效时长（小时）」写回成员表，考勤接口失败时
+        记一条 failure 并保留上次快照；该职责已迁走，这里锁住新契约：
+        一次同步只写统计列 + 同步元数据，且完全不访问 /attendance/ 路径。
+        """
         class FakeClient:
             def __init__(self):
                 self.updates = []
+                self.attendance_calls = []
             def items(self, path):
                 if path.endswith("/fields"):
                     if MEMBERS in path:
@@ -62,16 +68,19 @@ class MemberStatisticsTests(unittest.TestCase):
                 if "/contact/" in path:
                     return {"data": {"user": {"user_id": "user"}}}
                 if "/attendance/" in path:
+                    self.attendance_calls.append(path)
                     raise ApiError("无权限")
                 self.updates.append(body["fields"])
                 return {}
         client = FakeClient()
         report = sync(client, dt.date(2026, 9, 1), dt.date(2026, 9, 2))
-        self.assertEqual(report["failures"], 1)
+        self.assertEqual(report["failures"], 0)
+        self.assertEqual(report["members"], [{"record_id": "member", "tasks": "success"}])
         fields = client.updates[-1]
         self.assertEqual(set(fields), set(COUNTS) | {"同步时间", "同步说明"})
-        self.assertIn("考勤：同步失败", fields["同步说明"])
+        self.assertIn("考勤：由门户打卡管理（本程序不覆盖）", fields["同步说明"])
         self.assertNotIn("有效时长（小时）", fields)
+        self.assertFalse(client.attendance_calls, "同步不应再访问考勤接口")
 
 
 if __name__ == "__main__":

@@ -281,7 +281,13 @@ class RolloverAllTests(unittest.TestCase):
                   mock.patch.object(FR, "fields", lambda s, t: self.NAME2ID),
                   mock.patch.object(FR, "records", lambda s, t: self.ITEMS),
                   mock.patch.object(api.portal_writer, "FeishuWriter", return_value=writer),
-                  mock.patch.object(api, "_audit"), mock.patch.object(api.sync, "scheduler")]
+                  mock.patch.object(api, "_audit"), mock.patch.object(api.sync, "scheduler"),
+                  # 本周必须固定：不 patch 时断言会随"今天是第几周"漂移——
+                  # ITEMS 里 done 行的结算周写死 2026-10-19，到下一周它就变成待结算行，
+                  # 应写行数从 2 变 3，用例假失败（原本只在 2026-10-19 那周通过）
+                  mock.patch.object(api.attendance, "week_bounds",
+                                    return_value=(MON, MON + 7 * 86400,
+                                                  "2026-10-19", "2026-10-12"))]
         for p in common:
             p.start()
         self.addCleanup(mock.patch.stopall)
@@ -295,6 +301,31 @@ class RolloverAllTests(unittest.TestCase):
         with mock.patch.object(api.sync, "_load_sync_cfg", return_value=cfg):
             self.assertEqual(api.weekly_rollover_all(), [])
         writer.update.assert_not_called()
+
+
+class BoolJudgeTests(unittest.TestCase):
+    """达标判定：公式列优先；缺公式列时按 30 小时阈值，且先按对外精度量化。"""
+
+    def test_formula_column_wins(self):
+        from app.portal import attendance
+        self.assertTrue(attendance._bool_judge("达标", 0))
+        self.assertFalse(attendance._bool_judge("未达标", 99))
+
+    def test_none_hours_returns_none(self):
+        from app.portal import attendance
+        self.assertIsNone(attendance._bool_judge("", None))
+
+    def test_float_dust_does_not_flip_verdict(self):
+        # 浮点相减会得到 30.000000000000004 / 29.999999999999996：
+        # 量化到对外精度后都等于 30，一律判未达标（>，不含等于）
+        from app.portal import attendance
+        self.assertFalse(attendance._bool_judge("", 30.000000000000004))
+        self.assertFalse(attendance._bool_judge("", 29.999999999999996))
+
+    def test_above_threshold_passes(self):
+        from app.portal import attendance
+        self.assertTrue(attendance._bool_judge("", 30.01))
+        self.assertFalse(attendance._bool_judge("", 29.99))
 
 
 if __name__ == "__main__":

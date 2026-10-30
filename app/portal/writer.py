@@ -119,7 +119,6 @@ class FeishuWriter:
         """按记录 ID 更新指定字段（部分更新，未列出的字段不动）。"""
         check_record_id(record_id)
         tid = self._table_id(table_key)
-        base = self.cfg["api_base"]
         self._call(
             "PUT",
             f"/open-apis/bitable/v1/apps/{self.cfg['app_token']}"

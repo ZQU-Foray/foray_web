@@ -3,7 +3,7 @@
 - schema_version 随库创建写入 meta；读写前必须比对（`SCHEMA_VERSION`）：库内
   版本缺失或不等 → 抛 `SchemaVersionError` **拒绝任何读写**，绝不对未知版本
   直接降级读取（阶段 7 条款）；升级前须先备份再迁移（见运维手册）。
-- 发布语义：候选版本（next_version）四表 + 质量报告全部写入后，
+- 发布语义：候选版本（next_version）8 张表 + 质量报告全部写入后，
   单事务把 meta.current_version 指向新版本并删除所有更旧版本行——
   读方任意时刻看到的都是一份完整版本（失败保留旧版）。
 - 全部方法为同步 SQLite 调用，由同步线程（受控 worker）执行；

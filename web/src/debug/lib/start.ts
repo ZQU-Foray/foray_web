@@ -11,7 +11,12 @@ import { reloadFirmware } from "./firmware";
 import { startShoot } from "./shoot";
 import { loadMe } from "./identity";
 
+let consoleStarted = false;
+
 export function startDebugConsole(): void {
+  /* 整段编排只跑一次：重复调用会叠加设备切换回调、WS 连接与两条轮询（审计 P3） */
+  if (consoleStarted) return;
+  consoleStarted = true;
   deviceCtx.onChange(() => {
     serialRxReset();
     closeFlashWs();

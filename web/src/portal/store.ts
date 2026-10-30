@@ -156,10 +156,14 @@ function queueKey(): string {
   return q.open + "/" + q.failed + "/" + q.conflicts;
 }
 
+/* 轮询定时器句柄：重复调用 startPolling（热更新、路由重挂）不再叠加第二条轮询 */
+let pollTimer = 0;
+
 /** 轮询：比对快照版本、陈旧标记与推送队列计数，变化才通知当前页刷新 */
 export function startPolling(): void {
+  if (pollTimer) return;
   let pending = false;
-  window.setInterval(async () => {
+  pollTimer = window.setInterval(async () => {
     if (pending || document.hidden) return;
     pending = true;
     try {
@@ -171,6 +175,13 @@ export function startPolling(): void {
     } catch { /* 网络抖动：下一轮再试 */ }
     pending = false;
   }, POLL_MS);
+}
+
+/** 停止轮询（调试用/页面卸载时调用；不调用就一直跑，与改造前行为一致） */
+export function stopPolling(): void {
+  if (!pollTimer) return;
+  window.clearInterval(pollTimer);
+  pollTimer = 0;
 }
 
 /** 写入成功的提示：先存本地的说明正在推送，直写的说明已写入飞书（服务端给了文案就用它） */
