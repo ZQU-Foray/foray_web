@@ -1120,8 +1120,32 @@ def auth_logout(request: Request):
     return resp
 
 
+def _oauth_redirect_url(request, fallback: str) -> str:
+    """按请求 Host 生成回调地址；主机不在白名单内则沿用配置值。
+
+    多地址访问（127.0.0.1 / localhost / 局域网 IP）时，state 存在按主机隔离的
+    cookie 里；回调若固定跳到另一台主机，浏览器不会带上 cookie，登录就会报
+    「登录校验与当前浏览器不匹配」。这里只在 FEISHU_REDIRECT_HOSTS 明确列出的
+    主机上改走请求 Host，其余一律回退配置值，避免 Host 头被伪造后把授权码送去
+    别处（开放重定向）。
+    """
+    fallback = (fallback or "").strip()
+    host = (request.headers.get("host") or "").strip().lower()
+    if not host or not config.FEISHU_REDIRECT_HOSTS:
+        return fallback
+    # 主机名比对只取主机部分（去掉端口），白名单项同样允许带端口书写
+    bare = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+    allowed = set(config.FEISHU_REDIRECT_HOSTS)
+    if host not in allowed and bare not in allowed:
+        return fallback
+    # 端口与路径都固定：主机白名单 + 固定回调路径，无用户可控成分
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").lower()
+    scheme = "https" if proto.split(",")[0].strip() in ("https", "wss") else "http"
+    return "%s://%s/auth/feishu/callback" % (scheme, host)
+
+
 @app.get("/auth/feishu/start")
-def auth_feishu_start(next: str = "/", purpose: str = "login"):
+def auth_feishu_start(request: Request, next: str = "/", purpose: str = "login"):
     """发起 OAuth：一次性 state + 重定向授权页。未配置 → 503 明确诊断。"""
     from fastapi.responses import RedirectResponse
     from urllib.parse import quote
@@ -1129,6 +1153,9 @@ def auth_feishu_start(next: str = "/", purpose: str = "login"):
     if not cfg:
         raise HTTPException(503, "飞书登录未配置（缺少 app_id/secret/redirect_url；"
                                  "应急登录不受影响）")
+    redirect_url = _oauth_redirect_url(request, cfg.get("redirect_url") or "")
+    if redirect_url and redirect_url != cfg.get("redirect_url"):
+        cfg = dict(cfg, redirect_url=redirect_url)
     state = auth_feishu.new_state()
     url = auth_feishu.authorize_url(state, cfg)
     resp = RedirectResponse(url, status_code=302)
@@ -1176,7 +1203,13 @@ def auth_feishu_callback(request: Request, code: str = "", state: str = "", erro
     import secrets
     browser_state = request.cookies.get("oauth_state", "")
     if not state or not browser_state or not secrets.compare_digest(state, browser_state):
-        raise HTTPException(400, "登录校验与当前浏览器不匹配，请重新发起登录")
+        # 两种常见原因分开提示：没有 cookie 是「换了地址打开」，cookie 对不上是「重复点击」
+        if not browser_state:
+            hint = ("浏览器没有回传登录校验 cookie：请在发起登录的同一个地址上完成回调"
+                    "（127.0.0.1、localhost、局域网 IP 之间互不通用），并确认没有拦截 Cookie。")
+        else:
+            hint = "同一浏览器里重复发起了登录（后一次覆盖了前一次），或本次登录已超过 10 分钟。"
+        raise HTTPException(400, "登录校验与当前浏览器不匹配，请重新发起登录。" + hint)
     if not code or not auth_feishu.consume_state(state):
         raise HTTPException(400, "state 无效或已使用（重放拒绝），请重新发起登录")
     info, err = auth_feishu.exchange_code(code)

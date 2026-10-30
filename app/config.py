@@ -106,6 +106,13 @@ FEISHU_API_BASE = os.environ.get("FEISHU_API_BASE", "https://open.feishu.cn")
 FEISHU_CONFIG_FILE = Path(os.environ.get(
     "FEISHU_CONFIG_FILE", str(BASE_DIR / "config" / "feishu.json")))
 OAUTH_STATE_TTL_SEC = int(os.environ.get("AUTH_OAUTH_STATE_TTL", "600"))
+# 允许「按请求 Host 生成回调地址」的主机白名单（逗号分隔，可写 IP/localhost/域名）。
+# 为什么需要：OAuth state 存在按主机隔离的 cookie 里，若用户从 localhost 或局域网 IP
+# 打开页面、而回调固定跳到另一个主机，浏览器就不带 cookie，登录会报「校验不匹配」。
+# 留空 = 一律使用 FEISHU_REDIRECT_URL（默认最安全，不做任何推导）。
+# 只列明确可信的主机，避免 Host 头被伪造后把授权码送去别处（开放重定向）。
+FEISHU_REDIRECT_HOSTS = [h.strip().lower() for h in
+                         os.environ.get("FEISHU_REDIRECT_HOSTS", "").split(",") if h.strip()]
 
 # ---------- 设备访问策略（审计 P1-5） ----------
 # 越界 host 是否直接拒绝；设 0 时只记录告警放行，用于灰度观察

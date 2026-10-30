@@ -374,6 +374,23 @@ FEISHU_APP_ID=<app_id> FEISHU_BASE_APP_TOKEN=<app_token> \
 
 **换主机名/端口/改 HTTPS 时**：登记值与 `oauth.redirect_url` 必须同步更新，否则回调返回 `code=2000 redirect_uri unmatch`。**仍待实测**：真实浏览器跳转（需门户在该地址运行 + 成员本人点授权）。
 
+### 11.6b 多地址访问与 `FEISHU_REDIRECT_HOSTS`
+
+`oauth_state` 是**按主机名隔离**的 cookie：从 `localhost` 打开页面、发起的 state 就存在 `localhost` 名下，若回调固定跳到 `127.0.0.1`（或局域网 IP / 域名），浏览器不会带上 cookie，登录会报
+`登录校验与当前浏览器不匹配，请重新发起登录`。
+
+- 默认行为不变：一律使用 `FEISHU_REDIRECT_URL`（或 `feishu.json` 的 `oauth.redirect_url`）。
+- 需要多地址访问（本机 + 局域网 IP + 域名同时可达）时，把它列进白名单：
+
+  ```bash
+  # 只对列出的主机按「请求 Host」生成回调地址，其余仍走配置值
+  FEISHU_REDIRECT_HOSTS=127.0.0.1,localhost,192.168.1.130
+  ```
+
+- 白名单里的每个主机都要在飞书后台登记过回调地址（`http://<主机>/auth/feishu/callback`），否则飞书侧仍报 `redirect_uri unmatch`。
+- 白名单**留空最安全**：Host 头由客户端控制，不做白名单等于把授权码交给任何人。
+- 本地演示脚本会自动把 `127.0.0.1`、`localhost` 与本机 IP 加进白名单，换地址时用 `--redirect-host <主机>` 追加。
+
 ### 11.7 校验结果（真实模式，2026-09-09）
 
 `.venv/bin/python scripts/feishu_verify.py --config config/feishu.json` → **PASS 52 / FAIL 0 / SKIP 0 / WARN 1**（exit 0）。
