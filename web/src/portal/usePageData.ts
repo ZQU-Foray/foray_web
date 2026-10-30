@@ -26,9 +26,12 @@ export function usePageData<T extends Body>(loader: () => Promise<T>, deps?: Wat
   let lastMore = "";               // 上次弹过的「列表截断」通知
   let lastErr = "";                // 上次弹过的加载失败通知
 
+  /* 失败提示同时写进全局状态：toast 会自己消失，页面需要一条常驻的说明，
+   * 否则用户只看到上一次的内容而不知道它已经过期（审计 P1-3）。 */
   function fail(text: string): void {
     if (text !== lastErr) toast(text, "error");
     lastErr = text;
+    store.loadError = text;
   }
 
   async function reload(): Promise<void> {
@@ -45,6 +48,7 @@ export function usePageData<T extends Body>(loader: () => Promise<T>, deps?: Wat
       store.noSnapshot = false;
       notFound.value = false;
       lastErr = "";
+      store.loadError = "";
       const n = Array.isArray(res.data) ? res.data.length : 0;
       const more = res.has_more
         ? "列表仅显示前 " + n + " 条（共 " + res.total + " 条）——请用筛选缩小范围。"

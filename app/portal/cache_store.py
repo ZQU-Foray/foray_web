@@ -361,13 +361,19 @@ def _enqueue_update(c, table, record_id, sets, increments, by, now):
                     b[col] = before.get(col)
                 f[col] = v
             for col, d in inc.items():
+                # 增量列也要留入队时的基准，推送时用它做 CAS（见 rules.plan_update）
+                b.setdefault(col, before.get(col))
                 if col in f:                         # 原先直接写，在其上累加
                     f[col] = rules.apply_increment(f[col], d)
                 else:
-                    i[col] = round(i.get(col, 0.0) + d, 6)
+                    i[col] = round(i.get(col, 0.0) + d, rules.INCREMENT_DIGITS)
         _save_op(c, last, now)
         return last["id"]
+    # 增量列同样记录入队时的值作为基准：推送失败重试时据此判断
+    # "上一次是否已经成功"，避免重复叠加（审计 P1-1）
     base = {col: view.get(col) for col in sets}
+    for col in inc:
+        base.setdefault(col, view.get(col))
     return _insert_op(c, table, rid, "update", sets, inc, base, by, now)
 
 

@@ -95,7 +95,7 @@
 }
 .badge.ok      { background: var(--c-ok-bg); color: var(--c-ok); border-color: var(--c-ok-line); }
 .badge.warn    { background: var(--c-warn-bg); color: var(--c-warn); border-color: var(--c-warn-line); }
-.badge.danger  { background: var(--c-danger-bg); color: var(--c-danger); border-color: var(--c-danger-line); }
+.badge.danger  { background: var(--c-danger-bg); color: var(--c-danger-2); border-color: var(--c-danger-line); }
 .badge.neutral { background: var(--c-surface); color: var(--c-text-2); border-color: var(--c-divider); }
 .badge.ink     { background: var(--c-ink); color: var(--c-paper); border-color: var(--c-ink); }
 .badge.yellow  { background: var(--c-yellow); color: var(--c-ink); border-color: var(--c-yellow-2); }
@@ -407,6 +407,8 @@
 .more-link:hover { background: var(--c-yellow); }
 
 /* ========== 提示条 / 空态 ========== */
+/* 加载失败的常驻说明：与普通提示同构，靠左侧色条区分严重程度 */
+.note-err { border-left-color: var(--c-danger); color: var(--c-danger-2); }
 .note {
   position: relative;
   margin: 0 0 14px;
@@ -493,8 +495,9 @@
 .console .log-dim  { color: var(--c-log-dim); }
 
 /* ========== 进度 ========== */
+/* 填充用 ink 而不是黄：黄色对纸底只有 1.05:1，作为图形信息不达 3:1（审计 P2-3） */
 .prog { height: 3px; background: var(--c-divider); }
-.prog-fill { height: 100%; background: var(--c-yellow); transition: width var(--t-base); }
+.prog-fill { height: 100%; background: var(--c-ink); transition: width var(--t-base); }
 .prog-fill.ok     { background: var(--c-ok); }
 .prog-fill.danger { background: var(--c-danger); }
 
@@ -575,7 +578,17 @@
   border-bottom-color: var(--c-muted);
   background: var(--c-white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") right 10px center no-repeat;
 }
-.people-trigger:focus-visible { outline: 2px solid var(--c-ink); outline-offset: 1px; }
+.people-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.people-open:focus-visible,
+.people-trigger:focus-within { outline: 2px solid var(--c-ink); outline-offset: 1px; }
 .people-ph { color: var(--c-text-3); font-size: 13px; padding-left: 4px; }
 .people-tag {
   display: inline-flex;
@@ -592,10 +605,14 @@
   place-items: center;
   width: 18px;
   height: 18px;
+  padding: 0;
+  border: 0;
+  background: none;
   font: 700 13px/1 var(--f-num);
   color: var(--c-text-2);
   cursor: pointer;
 }
+.people-tag-x:focus-visible { outline: 2px solid var(--c-ink); outline-offset: 1px; }
 .people-tag-x:hover { background: var(--c-ink); color: var(--c-paper); }
 .people-panel {
   position: fixed;
@@ -647,8 +664,8 @@
   position: absolute;
   top: 11px;
   height: 16px;
-  background: var(--c-yellow);
-  border-left: 3px solid var(--c-ink);
+  background: var(--c-ink);
+  border-left: 3px solid var(--c-yellow-2);
 }
 .gantt-bar.st-done    { background: var(--c-ok-bg); border-left-color: var(--c-ok); }
 .gantt-bar.st-blocked { background: var(--c-warn-bg); border-left-color: var(--c-warn); }

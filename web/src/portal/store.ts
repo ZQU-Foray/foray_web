@@ -4,7 +4,7 @@
  * - 倒计时在浏览器本地每秒计算（以 server_time 校时），不向飞书轮询；
  * - 写入成功后立即刷新（afterWrite）：后端在响应前已把改动并进页面数据，不必等同步；
  *   直写模式由后端顺带请求一轮同步，先存本地的模式由推送线程推完后自己请求。 */
-import { reactive } from "vue";
+import { reactive, watch } from "vue";
 import { fetchMe, fetchMeta, fetchSyncStatus } from "./api";
 import type { CacheStatus, Envelope, Me, Meta, ProcOptions, SyncStatus, WriteResult } from "./types";
 import { fmtDT } from "@/shared/format";
@@ -42,6 +42,8 @@ export const store = reactive({
   noSnapshot: boot.sync ? !boot.sync.has_snapshot : false,
   /** 递增即通知当前页局部刷新（轮询发现新版本 / 写入后 / 手动刷新后） */
   refreshSeq: 0,
+  /** 当前页最近一次加载失败的说明（空串 = 正常）；由 PortalPage 常驻展示 */
+  loadError: "",
 
   /* ---- 跨页保留的筛选（软导航往返不重置） ---- */
   taskFilters: { group: "全部", priority: "全部", status: "全部", owner: "全部", project: "全部" },
@@ -194,3 +196,58 @@ export function afterWrite(res?: WriteResult | null, fallback?: string): void {
   toast(writeNote(res, fallback), "ok");
   requestRefresh();
 }
+
+/* ---- 筛选条件与地址栏同步 -------------------------------------------------
+ * 筛选项原来只活在内存里，刷新页面或把链接发给别人就全丢了（审计 P2）。
+ * 各页用不同前缀写进 query，互不覆盖；「全部」是默认值，不写进地址栏。
+ * 只改 query、不压历史记录，浏览器后退仍是换页而不是逐个筛选。 */
+const FILTER_PREFIX = { tasks: "t.", proc: "p.", project: "pr." } as const;
+const TASK_KEYS = ["group", "priority", "status", "owner", "project"];
+const PROC_KEYS = ["group", "season", "category1", "category2", "invoice", "q"];
+const PROJECT_KEYS = ["group"];
+
+function readFilters(): void {
+  const q = new URLSearchParams(location.search);
+  const load = (target: object, prefix: string, keys: string[]) => {
+    const bag = target as Record<string, string>;
+    for (const k of keys) {
+      const v = q.get(prefix + k);
+      if (v != null && v !== "") bag[k] = v;
+    }
+  };
+  load(store.taskFilters, FILTER_PREFIX.tasks, TASK_KEYS);
+  load(store.procFilters, FILTER_PREFIX.proc, PROC_KEYS);
+  load(store.projectFilters, FILTER_PREFIX.project, PROJECT_KEYS);
+  store.projectFilters.archived = q.get(FILTER_PREFIX.project + "archived") === "1";
+  const view = q.get("s.view");
+  if (view === "calendar" || view === "list") store.scheduleView = view;
+}
+
+/** 把当前筛选写回地址栏（replaceState，不新增历史记录） */
+export function writeFilters(): void {
+  const q = new URLSearchParams(location.search);
+  const dump = (source: object, prefix: string, keys: string[]) => {
+    const bag = source as Record<string, string>;
+    for (const k of keys) {
+      const v = bag[k];
+      if (!v || v === "全部") q.delete(prefix + k);
+      else q.set(prefix + k, v);
+    }
+  };
+  dump(store.taskFilters, FILTER_PREFIX.tasks, TASK_KEYS);
+  dump(store.procFilters, FILTER_PREFIX.proc, PROC_KEYS);
+  dump(store.projectFilters, FILTER_PREFIX.project, PROJECT_KEYS);
+  if (store.projectFilters.archived) q.set(FILTER_PREFIX.project + "archived", "1");
+  else q.delete(FILTER_PREFIX.project + "archived");
+  if (store.scheduleView === "calendar") q.set("s.view", "calendar");
+  else q.delete("s.view");
+  const qs = q.toString();
+  history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+}
+
+readFilters();
+watch(
+  () => [store.taskFilters, store.procFilters, store.projectFilters, store.scheduleView],
+  writeFilters,
+  { deep: true },
+);

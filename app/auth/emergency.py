@@ -78,6 +78,11 @@ def enable(username: str) -> dict:
     return {"username": username, "disabled": False}
 
 
+def get(username: str):
+    """按用户名取完整记录（会话撤销判定用）；不存在返回 None。"""
+    return _load()["users"].get(username)
+
+
 def list_users() -> list:
     out = []
     for u in _load()["users"].values():

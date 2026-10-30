@@ -9,6 +9,7 @@ import { personLabel, rosterPeople, type Person } from "../forms";
 defineProps<{ inputId?: string }>();
 const model = defineModel<string[]>({ required: true });
 
+const box = ref<HTMLElement | null>(null);
 const trigger = ref<HTMLButtonElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
 const open = ref(false);
@@ -30,10 +31,12 @@ function personOf(id: string): Person {
 function toggle(id: string, on: boolean) {
   const cur = model.value || [];
   model.value = on ? (cur.includes(id) ? cur : cur.concat([id])) : cur.filter((v) => v !== id);
+  /* 被移除的标签连同它的按钮一起消失：焦点回到「添加人员」，不要掉到 body 上 */
+  if (!on) nextTick(() => trigger.value?.focus());
 }
 
 function place() {
-  const el = trigger.value;
+  const el = box.value;
   if (!el) return;
   const r = el.getBoundingClientRect();
   const below = innerHeight - r.bottom - 12;
@@ -54,7 +57,7 @@ function place() {
 
 function onDoc(e: MouseEvent) {
   const t = e.target as Node;
-  if (panel.value && !panel.value.contains(t) && trigger.value && !trigger.value.contains(t)) close();
+  if (panel.value && !panel.value.contains(t) && box.value && !box.value.contains(t)) close();
 }
 function onScroll(e: Event) {
   const t = e.target as Node;
@@ -93,22 +96,30 @@ onBeforeUnmount(close);
 </script>
 
 <template>
-  <button
-    :id="inputId"
-    ref="trigger"
-    type="button"
-    class="people-trigger"
-    :aria-expanded="open ? 'true' : 'false'"
-    aria-haspopup="listbox"
-    @click.stop="onTrigger"
-    @keydown="onKey"
-  >
-    <span v-if="!model.length" class="people-ph">＋ 选择人员</span>
+  <!-- 外壳是 div：里面既有「打开候选」的按钮，也有每个标签各自的「移除」按钮。
+       不能再把所有东西塞进一个 button（HTML 不允许按钮嵌套按钮），
+       否则移除控件键盘到不了、读屏也只念一个按钮。 -->
+  <div :id="inputId" ref="box" class="people-trigger">
+    <button
+      ref="trigger"
+      type="button"
+      class="people-open"
+      :aria-expanded="open ? 'true' : 'false'"
+      aria-haspopup="listbox"
+      @click.stop="onTrigger"
+      @keydown="onKey"
+    ><span class="people-ph">{{ model.length ? "＋ 添加人员" : "＋ 选择人员" }}</span></button>
     <span v-for="id in model" :key="id" class="people-tag">
       {{ personLabel(personOf(id)) }}
-      <span class="people-tag-x" title="移除" role="button" aria-label="移除" @click.stop="toggle(id, false)">×</span>
+      <button
+        type="button"
+        class="people-tag-x"
+        :aria-label="'移除 ' + personLabel(personOf(id))"
+        title="移除"
+        @click.stop="toggle(id, false)"
+      >×</button>
     </span>
-  </button>
+  </div>
   <Teleport to="body">
     <div v-if="open" ref="panel" class="people-panel" :style="pos" role="listbox" aria-multiselectable="true" @keydown="onKey">
       <p v-if="!people.length" class="note" style="margin: 4px">花名册暂无人员（请先在飞书花名册里维护）</p>

@@ -148,8 +148,13 @@ def to_number(v):
     return 0.0 if (math.isnan(f) or math.isinf(f)) else f
 
 
-def apply_increment(current, delta, ndigits=2):
-    """增量列：飞书当前值 + 本次增量（考勤时长保留 2 位，与签退口径一致）。"""
+# 增量列统一保留 4 位小数：与考勤明细（attendance.HOURS_DIGITS）同口径，
+# 避免"合并两次增量"与"分两次推送"得到不同结果（审计 P2-1）
+INCREMENT_DIGITS = 4
+
+
+def apply_increment(current, delta, ndigits=INCREMENT_DIGITS):
+    """增量列：飞书当前值 + 本次增量（时长类列保留 4 位小数）。"""
     return round(to_number(current) + float(delta), ndigits)
 
 
@@ -199,7 +204,8 @@ def conflict_item(kind, field_name=None, base=None, local=None, remote=None):
             "local": local, "remote": remote}
 
 
-def plan_update(base, sets, remote_fields, increments=None, ndigits=2, force=()):
+def plan_update(base, sets, remote_fields, increments=None,
+                ndigits=INCREMENT_DIGITS, force=()):
     """按规则 1/2/4/6 计算一次修改该推什么（指令键忽略，由调用方另行求值）。
 
     base：编辑当时这些列的值（列名 → 值，缺列视为空）；sets：本地要写的新值；
@@ -223,7 +229,15 @@ def plan_update(base, sets, remote_fields, increments=None, ndigits=2, force=())
         else:
             plan.conflicts.append(conflict_item("field", col, b, local, r))
     for col, delta in (increments or {}).items():
-        plan.push[col] = apply_increment(remote_fields.get(col), delta, ndigits)
+        r = remote_fields.get(col)
+        b = base.get(col) if isinstance(base, dict) else None
+        if isinstance(base, dict) and col in base and not same(r, b):
+            # 飞书当前值已不等于入队时的基准：上一次推送很可能已经成功（HTTP 超时、
+            # 进程在回写前被杀），再叠加一次就是重复结算。这里不再推增量，改记冲突，
+            # 由组长核对后手工修正（审计 P1-1：增量推送必须幂等）。
+            plan.conflicts.append(conflict_item("increment_base_drift", col, b, delta, r))
+            continue
+        plan.push[col] = apply_increment(r, delta, ndigits)
     return plan
 
 

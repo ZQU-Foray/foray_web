@@ -20,9 +20,11 @@ from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("Asia/Shanghai")
 WEEK_THRESHOLD_HOURS = 30
-# 工时对外按 2 位小数存储（api 层统一 round(..., 2)），判定前先按同一精度量化：
-# 否则浮点相减得到的 30.000000000000004 判达标、29.999999999999996 判未达标（审计 P3）
-HOURS_DIGITS = 2
+# 工时统一保留 4 位小数：明细、合并、增量推送三处口径一致，
+# 否则两次 3.3333h 合并与分推会得到不同结果（审计 P2-1）
+# 达标判定也按这个精度先量化：浮点相减得到的 30.000000000000004 判达标、
+# 29.999999999999996 判未达标，是同一处的两种答案（审计 P3）
+HOURS_DIGITS = 4
 
 # 成员数据表里由门户写入的列（scripts/feishu_attendance_setup.py 按这些列名建列）
 COL_WORK = "有效时长（小时）"
@@ -117,10 +119,10 @@ def rollover_updates(work, base, key, this_key, last_key):
     """
     if key == this_key:
         return None
-    w = round(float(work or 0), 2)
+    w = round(float(work or 0), HOURS_DIGITS)
     last = None
     if key == last_key and base is not None:
-        last = round(max(w - float(base), 0.0), 2)
+        last = round(max(w - float(base), 0.0), HOURS_DIGITS)
     return {COL_WEEK_BASE: w, COL_WEEK_KEY: this_key, COL_LAST_WEEK: last}
 
 
