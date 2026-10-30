@@ -56,10 +56,37 @@ def _seed_account(path):
     os.chmod(path, 0o600)
 
 
+def _local_ips():
+    """取本机可访问地址；没有 hostname 命令时退回 socket，避免脚本崩在打印地址上。"""
+    import shutil
+    if shutil.which("hostname"):
+        try:
+            out = subprocess.run(["hostname", "-I"], capture_output=True,
+                                 text=True, timeout=3).stdout.split()
+            if out:
+                return [ip for ip in out if ":" not in ip]
+        except Exception:                            # noqa: BLE001
+            pass
+    ips = []
+    try:
+        import socket
+        sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sk.connect(("8.8.8.8", 80))
+        ips.append(sk.getsockname()[0])
+        sk.close()
+    except Exception:                                # noqa: BLE001
+        pass
+    return ips
+
+
 def main():
     ap = argparse.ArgumentParser(description="本地演示实例（离线示例数据）")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--host", default="0.0.0.0")
+    ap.add_argument("--redirect-host", action="append", default=[],
+                    metavar="HOST",
+                    help="额外允许的登录回调主机（如局域网 IP）；可重复"
+                         "。127.0.0.1/localhost/本机 IP 已自动加入")
     ap.add_argument("--stop", action="store_true")
     ap.add_argument("--serve", action="store_true",
                     help="保持前台常驻（假飞书在启动器进程内，退出会导致后续同步失败）")
@@ -110,6 +137,12 @@ def main():
 
     env = dict(os.environ)
     env.update(cfg)
+    # 登录回调主机：127.0.0.1/localhost 与探测到的本机 IP 默认放行，其余靠 --redirect-host。
+    # 用户从哪个地址打开页面，就从那个地址回调，state cookie 才带得回来。
+    redirect_hosts = ["127.0.0.1", "localhost"]
+    for ip in _local_ips() + list(args.redirect_host):
+        if ip and ip not in redirect_hosts:
+            redirect_hosts.append(ip)
     env.update({
         "WEB_HOST": args.host, "WEB_PORT": str(args.port),
         "FEISHU_API_BASE": "http://127.0.0.1:%d" % fw_port,
@@ -119,6 +152,7 @@ def main():
         "FEISHU_ALLOWED_TENANT_KEYS": "tenant-test",
         # 让"飞书登录"按钮在演示里可用（走假飞书授权页，不联外网）
         "FEISHU_REDIRECT_URL": "http://127.0.0.1:%d/auth/feishu/callback" % args.port,
+        "FEISHU_REDIRECT_HOSTS": ",".join(redirect_hosts),
         "PORTAL_SYNC_INTERVAL": "60", "PORTAL_MANUAL_MIN_GAP": "1",
         "AUTH_EMERGENCY_ENABLED": "0",
     })
@@ -167,12 +201,14 @@ def main():
         except Exception:                            # noqa: BLE001
             pass
 
-    ips = subprocess.run(["hostname", "-I"], capture_output=True, text=True).stdout.split()
+    ips = _local_ips()
     print("\n=== 本地演示已启动（示例数据，不连真实飞书） ===")
     print("  浏览器打开： http://127.0.0.1:%d/" % args.port)
     for ip in ips[:2]:
         print("       或    ： http://%s:%d/" % (ip, args.port))
     print("  登录：用户名 %s / 密码 %s" % (USERNAME, PASSWORD))
+    print("  飞书登录可用主机：%s（换地址打开时用 --redirect-host 追加）"
+          % ",".join(redirect_hosts))
     print("  数据目录：%s（删除即清理；停止：--stop）" % DATA_DIR)
     print("  服务日志：%s" % os.path.join(DATA_DIR, "demo.log"))
     if args.serve:
