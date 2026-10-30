@@ -151,11 +151,13 @@ class UpdateTests(PushCase):
         self.fs.put("members", "recM", {"同步说明": "成员同步脚本", "有效时长（小时）": "50"})
         self.p.drain()
         r = self.remote("members", "recM")
-        self.assertEqual(r["有效时长（小时）"], 51.5)                       # 增量加在 50 上
+        # 时长列被人手改成 50、已不等于入队基准 40：不再叠加增量（否则重试会重复结算，
+        # 审计 P1-1），改为记一条冲突让人核对；其余列与换周指令照常推送
+        self.assertEqual(r["有效时长（小时）"], "50")
+        self.assertEqual(C.list_conflicts()[0]["kind"], "increment_base_drift")
         self.assertEqual(r["同步说明"], "门户签退 +1.50h")                  # 日志列直接覆盖
         self.assertEqual((r["周初时长"], r["结算周"], r["上周时长"]), (50.0, "2026-10-19", 40.0))
         self.assertNotIn("$rollover", r)
-        self.assertEqual(C.list_conflicts(), [])
 
     def test_rollover_is_idempotent(self):
         self.seed("members", "recM", {"有效时长（小时）": "40", "周初时长": "40",
