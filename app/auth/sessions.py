@@ -3,9 +3,9 @@
 会话令牌原文只在 Cookie/Authorization 中出现；文件存 sha256 摘要。
 状态判定 session_state() 是唯一裁决口径（HTTP 中间件、WS 周期检查、
 命令前检查共用），返回：
-- ok                 放行（emergency 永远 ok——不复核，见计划 §6.6）
+- ok                 放行（emergency 不复核上游，但账号被停用/轮换密码即失效）
 - expired            绝对有效期已过
-- revoked            已退出/被撤销/成员已离开组织
+- revoked            已退出/被撤销/成员已离开组织/账号已停用或改密
 - recheck_unavailable 成员上游复核超过宽限期不可用（≠被移除，单独状态）
 """
 import json
@@ -150,6 +150,44 @@ def iter_member_sessions():
             yield tok, rec
 
 
+def _member_state(rec: dict) -> str:
+    """按账号库当前状态裁决成员会话（fail-closed：读不到账号库即视为失效）。
+
+    旧实现只比较 extra 里的 revoked_after 快照，改密/禁用后旧会话仍可用；
+    现在每次读账号当前值，代价是一次 stat + 内存查表（accounts 有 mtime 缓存）。
+    """
+    from . import accounts          # 局部导入，避免 auth 包内循环依赖
+    open_id = (rec.get("extra") or {}).get("open_id", "")
+    if not open_id:
+        return "revoked"
+    try:
+        a = accounts.get(open_id)
+    except Exception:
+        return "revoked"
+    if not a or a.get("status") != "active":
+        return "revoked"
+    ra = a.get("revoked_after") or 0
+    if ra and rec.get("created", 0) < ra:
+        return "revoked"
+    return ""
+
+
+def _emergency_state(rec: dict) -> str:
+    """按应急账号库当前值裁决（停用或轮换密码后旧会话立即失效）。"""
+    from . import emergency
+    name = str(rec.get("user", "")).split(":", 1)[-1]
+    try:
+        u = emergency.get(name)
+    except Exception:
+        return "revoked"
+    if not u or u.get("disabled"):
+        return "revoked"
+    ra = u.get("revoked_after") or 0
+    if ra and rec.get("created", 0) < ra:
+        return "revoked"
+    return ""
+
+
 def session_state(rec: dict, now: float = None) -> str:
     """唯一裁决口径（见模块 docstring）。"""
     now = now or time.time()
@@ -158,11 +196,10 @@ def session_state(rec: dict, now: float = None) -> str:
     if now >= rec.get("expires", 0):
         return "expired"
     if rec.get("role") == "emergency":
-        # 应急凭据撤销：会话创建时间早于账号 revoked_after 即失效（懒检查）
-        ra = (rec.get("extra") or {}).get("revoked_after", 0)
-        if ra and rec.get("created", 0) < ra:
-            return "revoked"
-        return "ok"
+        return _emergency_state(rec) or "ok"
+    bad = _member_state(rec)
+    if bad:
+        return bad
     # member：复核宽限期（断网不自动取消鉴权——只收紧为不可用状态）
     if now - rec.get("last_recheck_ok", 0) > config.RECHECK_GRACE_SEC + config.RECHECK_INTERVAL_SEC:
         return "recheck_unavailable"

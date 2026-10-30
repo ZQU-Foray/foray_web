@@ -25,6 +25,10 @@ RESERVED = {"admin", "root", "system", "feishu", "portal", "administrator",
             "维护者", "管理员"}
 AUDIT_MAX_BYTES = 5 * 1024 * 1024
 
+# 读取缓存：会话状态每个已认证请求都要查一次账号，用（mtime, size）当版本键，
+# 文件未变时直接复用上次解析结果；写路径在 _save 里刷新，不会读到旧值。
+_cache = {"key": None, "doc": None}
+
 
 # ---------------- 路径与读写 ----------------
 
@@ -40,17 +44,32 @@ def _empty():
     return {"version": 1, "accounts": {}}
 
 
+def _file_key():
+    """账号库的版本键（mtime 纳秒 + 大小）；文件不存在返回 None。"""
+    try:
+        st = _path().stat()
+    except OSError:
+        return None
+    return (st.st_mtime_ns, st.st_size)
+
+
 def _load() -> dict:
+    key = _file_key()
+    if key is not None and _cache["doc"] is not None and _cache["key"] == key:
+        return _cache["doc"]
     try:
         raw = json.loads(_path().read_text(encoding="utf-8"))
         if isinstance(raw, dict) and isinstance(raw.get("accounts"), dict):
             raw.setdefault("version", 1)
+            _cache["key"], _cache["doc"] = key, raw
             return raw
     except FileNotFoundError:
         pass
     except Exception:
         pass                      # 损坏 = 视为空库；审计里留有写入记录可追
-    return _empty()
+    empty = _empty()
+    _cache["key"], _cache["doc"] = key, empty
+    return empty
 
 
 def _save(doc: dict) -> None:
@@ -66,6 +85,8 @@ def _save(doc: dict) -> None:
             os.chmod(p, 0o600)
         except OSError:
             pass
+        # 写盘后 mtime 已变：顺手刷新读取缓存，避免下一次 _load 多读一遍文件
+        _cache["key"], _cache["doc"] = _file_key(), doc
 
 
 def audit(event: str, **fields) -> None:
@@ -162,6 +183,9 @@ def create(open_id: str, username: str, password: str, display: str = "",
             raise ValueError("该用户名已被占用，请换一个")
         existed = open_id in doc["accounts"]
         old = doc["accounts"].get(open_id) or {}
+        if old.get("status") not in (None, "active"):
+            # 已停用/已删除的账号不允许重新开通，否则「禁用」形同虚设
+            raise ValueError("账号已被停用，请联系管理员")
         now = time.time()
         doc["accounts"][open_id] = {
             "username": u,
@@ -173,6 +197,8 @@ def create(open_id: str, username: str, password: str, display: str = "",
             "password_updated_at": now,
             "last_login_at": old.get("last_login_at"),
             "last_seen_org_at": now,
+            # 保留既有撤销时间戳：重置密码不该把「改密即失效」的历史抹掉
+            "revoked_after": old.get("revoked_after", 0),
         }
         _save(doc)
     audit("account_onboard" if not existed else "account_password_reset",
