@@ -1400,7 +1400,7 @@ def _procurement_upload_and_attach(data, filename, content_type, record_id, colu
     token = w.upload_attachment(data, filename, content_type)
     fields = _procurement_live_fields(record_id)
     if fields is None:
-        raise SyncError("api", "采购记录不存在（或已从源表移除）")
+        raise _SyncError("api", "采购记录不存在（或已从源表移除）")
     cur = [a for a in (fields.get(col_name) or [])
            if isinstance(a, dict) and a.get("file_token")]
     # 重复上传同一文件：飞书会复用 token，去重后放到最后
@@ -1453,6 +1453,17 @@ async def write_procurement_upload(record_id: str, request: Request,
             record_id, column)
     except _SyncError as e:
         raise _write_error(e)
+    except HTTPException:
+        raise
+    except Exception as e:
+        # 兜底：未预期异常也要留下审计线索，否则前端只看到一个没有 detail 的 500。
+        # 附件 token 此时可能已上传成功，记下来方便运维清理孤儿附件。
+        import logging
+        logging.getLogger(__name__).exception(
+            "采购附件上传失败（未预期异常）record=%s column=%s", record_id, column)
+        _audit("portal_procurement_upload_failed", record=record_id, name=name,
+               column=column, error=type(e).__name__)
+        raise HTTPException(502, "附件上传失败：服务端异常，请稍后重试或联系维护者")
     accepted, _ = sync.scheduler().request_manual(
         "portal-write:" + (getattr(request.state, "session", {}) or {}).get("display", "?"))
     _audit("portal_procurement_upload", record=record_id, name=name, column=column,
