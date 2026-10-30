@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
-from . import config, device_registry, devices, firmware, motor_presets, presets, sessions, shoot, vllink_config
+from . import config, device_registry, devices, firmware, motor_presets, net_policy, presets, sessions, shoot, vllink_config
 from .auth import accounts as auth_accounts
 from .auth import emergency as auth_emergency
 from .auth import feishu as auth_feishu
@@ -174,6 +174,11 @@ def v2_probe_device(device_id: str):
     dev = _device_or_400(device_id)
     if dev.get("transport") == "vllink_tcp":
         host = dev.get("host", "")
+        ok, why = net_policy.check_host(host)
+        if not ok:
+            if net_policy.enforcing():
+                raise HTTPException(400, why)
+            logging.warning("设备 host 越界（仅告警）：%s", why)
         sess = sessions.store().peek(device_id)      # 只读查看，不创建会话
         uart_session = bool(sess and (sess.serial.is_open or sess.shoot.is_open))
         busy = uart_session or bool(
@@ -850,14 +855,34 @@ async def ws_shoot(ws: WebSocket):
 
 # ================= STA 局域网扫描（阶段 4 补充） =================
 
+# 最近一次扫描时间戳，用于 60s 冷却（进程内单 worker，无需跨进程锁）
+_SCAN_LAST = {"at": 0.0}
+
+
 @app.post("/api/v2/devices/scan")
-def v2_scan_sta():
+def v2_scan_sta(request: Request):
     """扫描本网段 4441/20010 端口，自动发现在线的 Basic2 STA。
 
     原理：Basic2 STA 固件 ≥V00.50 在 4441(TCP-DAP) 和 20010(TCP-UART)
     端口监听。通过 socket 探测子网内这两端口同时开放的 IP。
     扫描范围：服务器所在 /24 子网（可配置 SCAN_SUBNET）。
+
+    权限：/24 扫描等于一次内网探测，只允许组长触发，并带冷却时间，
+    避免任何登录者把门户当成内网扫描器使用（审计 P1-5）。
     """
+    _rec = getattr(request.state, "session", None) or {}
+    # 应急调试身份本来就是最高权限（可刷写、可开串口），扫描一并放行
+    _is_emergency = str(_rec.get("user") or "").startswith("emergency:")
+    _open_id, leader_groups = portal_api.leader_ctx(request)
+    if not leader_groups and not _is_emergency:
+        raise HTTPException(403, "仅组长可以扫描局域网设备")
+    now = _time.time()
+    last = _SCAN_LAST.get("at") or 0.0
+    cooldown = config.SCAN_COOLDOWN_SEC
+    if now - last < cooldown:
+        raise HTTPException(
+            429, f"扫描过于频繁，请 {int(cooldown - (now - last)) + 1} 秒后再试")
+    _SCAN_LAST["at"] = now
     import socket
     import concurrent.futures
     import os
@@ -1063,7 +1088,7 @@ def auth_account_reset_password(request: Request, body: dict):
     except ValueError as e:
         raise HTTPException(422, str(e))
     auth_sessions.clear_reset(tok)
-    return {"ok": True, "note": "密码已重设，其他设备上的旧会话已失效"}
+    return {"ok": True, "note": "密码已重设，其他设备上的旧会话将在下一次请求时失效"}
 
 
 @app.get("/api/auth/me")

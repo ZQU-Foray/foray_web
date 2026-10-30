@@ -87,9 +87,13 @@ export const router = {
   afterEach(fn: (to: Route, from: Route) => void): void { listeners.push(fn); },
 };
 
+/** 未匹配地址时渲染的兜底组件（不传则保持空白，调试台用不上） */
+let fallback: Component | null = null;
+
 /** 安装路由表并解析当前地址；返回初始路由 */
-export function createRouter(defs: RouteDef[]): Route {
+export function createRouter(defs: RouteDef[], fallbackComponent?: Component): Route {
   compiled = defs.map(compile);
+  fallback = fallbackComponent || null;
   window.addEventListener("popstate", () => commit(resolve(location.pathname + location.search)));
   const first = resolve(location.pathname + location.search);
   current.value = first;
@@ -123,7 +127,8 @@ export const RouterView = defineComponent({
   setup() {
     return () => {
       const r = current.value;
-      return r.def ? h(r.def.component, { key: r.path }) : null;
+      if (r.def) return h(r.def.component, { key: r.path });
+      return fallback ? h(fallback, { key: r.path }) : null;
     };
   },
 });

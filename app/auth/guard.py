@@ -325,6 +325,8 @@ async def recheck_loop():
                     _drop_left_member((rec.get("extra") or {}).get("open_id", ""),
                                       detail or "复核返回已离职/已退出")
                 # unavailable：不更新 last_recheck_ok，由宽限期自然收紧
+            # 顺带清理已过期/已撤销的死会话，避免会话文件无限增长
+            sessions.prune()
         except Exception:
             pass
         await asyncio.sleep(max(1, config.RECHECK_INTERVAL_SEC))
