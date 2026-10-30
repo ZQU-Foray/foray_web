@@ -107,6 +107,14 @@ FEISHU_CONFIG_FILE = Path(os.environ.get(
     "FEISHU_CONFIG_FILE", str(BASE_DIR / "config" / "feishu.json")))
 OAUTH_STATE_TTL_SEC = int(os.environ.get("AUTH_OAUTH_STATE_TTL", "600"))
 
+# ---------- 设备访问策略（审计 P1-5） ----------
+# 越界 host 是否直接拒绝；设 0 时只记录告警放行，用于灰度观察
+DEVICE_HOST_ENFORCE = os.environ.get("DEVICE_HOST_ENFORCE", "1").strip() not in ("0", "false", "False")
+# 额外允许的网段，逗号分隔，例如 192.168.1.0/24,10.0.0.0/16
+DEVICE_HOST_ALLOWLIST = os.environ.get("DEVICE_HOST_ALLOWLIST", "").strip()
+# 局域网扫描冷却秒数（组长手动触发也要限频，避免被当成内网探测器）
+SCAN_COOLDOWN_SEC = int(os.environ.get("SCAN_COOLDOWN_SEC", "60"))
+
 # ---------- 门户同步与快照（阶段 4） ----------
 PORTAL_DB = Path(os.environ.get("PORTAL_DB", str(BASE_DIR / "config" / "portal_snapshot.db")))
 PORTAL_SYNC_INTERVAL_SEC = int(os.environ.get("PORTAL_SYNC_INTERVAL", "60"))
