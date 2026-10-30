@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /* 考勤打卡条（排行卡头部）：签到 / 签退；网段校验在服务端 */
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { attendanceAction, fetchAttendance } from "../api";
-import { requestRefresh } from "../store";
+import { requestRefresh, store } from "../store";
 import { errorDetail } from "@/shared/http";
 import { fmtDT } from "@/shared/format";
 import { toast } from "@/shared/toast";
@@ -12,6 +12,9 @@ const checkedIn = ref(false);
 const ready = ref(false);
 const busy = ref(false);
 const hours = ref("0.00");
+/* 首次读取失败时不能把按钮永久藏起来：给一个「重试」出口，
+ * 否则网络抖一下这个页面就再也签不上到（审计 P1-3）。 */
+const failed = ref(false);
 
 async function refresh() {
   try {
@@ -20,9 +23,17 @@ async function refresh() {
     checkedIn.value = !!st.checked_in;
     stateText.value = st.checked_in ? "已签到 " + fmtDT(st.since || null) : "未签到";
     ready.value = true;
+    failed.value = false;
   } catch {
     stateText.value = "考勤状态不可用";
+    failed.value = true;
   }
+}
+
+/* 打卡按钮：状态未知时点它先重试读取，已知时才真正打卡 */
+function onButton() {
+  if (failed.value) { void refresh(); return; }
+  void onClick();
 }
 
 async function onClick() {
@@ -49,20 +60,23 @@ async function onClick() {
 }
 
 onMounted(refresh);
+/* 轮询或写入后全局刷新时同步卡片状态，避免显示的是上一轮的结果 */
+watch(() => store.refreshSeq, refresh);
 </script>
 
 <template>
   <div id="attend-box" class="checkin-bar">
     <span class="dot" :class="checkedIn ? 'ok' : 'warn'" aria-hidden="true"></span>
-    <span id="attend-state" class="checkin-text">{{ stateText }}<template v-if="ready"><span class="sep">│</span>我的工时 <b class="t-num">{{ hours }}</b> h</template></span>
+    <span id="attend-state" class="checkin-text" aria-live="polite">{{ stateText }}<template v-if="ready"><span class="sep">│</span>我的工时 <b class="t-num">{{ hours }}</b> h</template></span>
     <button
       id="attend-btn"
       type="button"
       class="btn sm"
-      :hidden="!ready"
+      :hidden="!ready && !failed"
       :disabled="busy"
-      @click="onClick"
-    >{{ checkedIn ? "签退" : "签到" }}</button>
+      :aria-busy="busy ? 'true' : undefined"
+      @click="onButton"
+    >{{ failed ? "重试" : (checkedIn ? "签退" : "签到") }}</button>
   </div>
 </template>
 

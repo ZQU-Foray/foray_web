@@ -41,6 +41,12 @@ const busy = ref(false);
 const btnText = ref(submitText);
 const box = ref<HTMLElement | null>(null);
 
+/* 每个控件一个稳定 id：<label for> 才能真的关联到它（点标签即聚焦控件）。
+ * 复合控件（单选组、人员、附件）没有单一可标注元素，改用 aria-labelledby 指向标签文本。 */
+function ctlId(key: string): string { return "wf-" + key; }
+const SIMPLE_CTL = ["text", "dt", "date", "number", "select", "project"];
+function simpleCtl(t: string): boolean { return SIMPLE_CTL.indexOf(t) >= 0; }
+
 /* 下拉候选：首项「不设置」；当前值不在候选里也保留，避免保存时被静默丢掉 */
 function selectOptions(r: FieldSpec): Array<{ v: string; label: string }> {
   const parent = r.link ? String(values[r.link] || "") : null;
@@ -115,20 +121,39 @@ async function submit() {
   }
 }
 
+/* 弹窗内的可聚焦元素：Tab 在首尾之间循环，避免焦点跑回被 inert 遮住的页面 */
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 function onKey(e: KeyboardEvent) {
-  if (e.key === "Escape") closeForm();
+  if (e.key === "Escape") { closeForm(); return; }
+  if (e.key !== "Tab" || !box.value) return;
+  /* 人员浮层挂在 body 上，是弹窗的一部分，允许焦点进去 */
+  const active = document.activeElement as HTMLElement | null;
+  if (active && active.closest(".people-panel")) return;
+  const items = Array.from(box.value.querySelectorAll<HTMLElement>(FOCUSABLE))
+    .filter((el) => !el.hasAttribute("hidden") && el.getAttribute("aria-hidden") !== "true");
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && (active === first || !box.value.contains(active))) { e.preventDefault(); last.focus(); }
 }
 
 let lastFocus: HTMLElement | null = null;
+/* 弹窗打开时整个外壳不可聚焦、不可点（读屏也不会读到背后内容）。
+ * 弹窗本体 Teleport 到 body，所以不受这条影响。 */
+const shell = () => document.querySelector<HTMLElement>(".app-shell");
 onMounted(async () => {
   lastFocus = document.activeElement as HTMLElement | null;
   document.addEventListener("keydown", onKey);
+  shell()?.setAttribute("inert", "");
   nextTick(() => box.value?.querySelector<HTMLElement>("input, select, textarea, button.people-trigger")?.focus());
   if (spec.rows.some((r) => r.t === "select")) await ensureProcOptions();
   if (spec.rows.some((r) => r.t === "project")) projectOpts.value = await ensureProjectOptions();
 });
 onBeforeUnmount(() => {
   document.removeEventListener("keydown", onKey);
+  shell()?.removeAttribute("inert");
   lastFocus?.focus?.();
 });
 
@@ -142,45 +167,52 @@ const projectChoices = computed<Option[]>(() => {
 </script>
 
 <template>
-  <div class="modal" @click.self="closeForm">
-    <div ref="box" class="modal-box" role="dialog" aria-modal="true" :aria-label="title">
-      <div class="modal-head">
-        <h2>{{ title }}</h2>
-        <button type="button" class="modal-close" aria-label="关闭" @click="closeForm">×</button>
-      </div>
-      <div class="modal-body">
-        <div v-for="r in rows" :key="r.k" class="form-row">
-          <span class="form-label">{{ r.label }}<span v-if="r.req" class="req">（必填）</span></span>
-          <div class="form-ctl">
-            <input v-if="r.t === 'text'" v-model="values[r.k]" class="input" type="text" :data-k="r.k">
-            <input v-else-if="r.t === 'dt'" v-model="values[r.k]" class="input" type="datetime-local" :data-k="r.k">
-            <input v-else-if="r.t === 'date'" v-model="values[r.k]" class="input" type="date" :data-k="r.k">
-            <input v-else-if="r.t === 'number'" v-model="values[r.k]" class="input" type="number" step="0.01" min="0" :data-k="r.k">
-            <select v-else-if="r.t === 'select'" v-model="values[r.k]" class="select" :data-k="r.k">
-              <option v-for="o in selectOptions(r)" :key="o.v" :value="o.v">{{ o.label }}</option>
-            </select>
-            <select v-else-if="r.t === 'project'" v-model="values[r.k]" class="select" :data-k="r.k">
-              <option value="">（无）</option>
-              <option v-for="o in projectChoices" :key="o.id" :value="o.id">{{ o.label }}</option>
-            </select>
-            <label v-else-if="r.t === 'check'" class="opt"><input v-model="values[r.k]" type="checkbox" :data-k="r.k"> 勾选</label>
-            <div v-else-if="r.t === 'radio'" class="opts" role="radiogroup" :aria-label="r.label">
-              <label v-for="o in r.opts" :key="o" class="opt"><input v-model="values[r.k]" type="radio" :name="r.k" :value="o"> {{ o }}</label>
+  <Teleport to="body">
+    <div class="modal">
+      <div ref="box" class="modal-box" role="dialog" aria-modal="true" :aria-label="title">
+        <div class="modal-head">
+          <h2>{{ title }}</h2>
+          <button type="button" class="modal-close" aria-label="关闭" @click="closeForm">×</button>
+        </div>
+        <div class="modal-body">
+          <div v-for="r in rows" :key="r.k" class="form-row">
+            <label v-if="simpleCtl(r.t)" class="form-label" :for="ctlId(r.k)">
+              {{ r.label }}<span v-if="r.req" class="req">（必填）</span>
+            </label>
+            <span v-else :id="ctlId(r.k) + '-lab'" class="form-label">
+              {{ r.label }}<span v-if="r.req" class="req">（必填）</span>
+            </span>
+            <div class="form-ctl">
+              <input v-if="r.t === 'text'" :id="ctlId(r.k)" v-model="values[r.k]" class="input" type="text" :data-k="r.k">
+              <input v-else-if="r.t === 'dt'" :id="ctlId(r.k)" v-model="values[r.k]" class="input" type="datetime-local" :data-k="r.k">
+              <input v-else-if="r.t === 'date'" :id="ctlId(r.k)" v-model="values[r.k]" class="input" type="date" :data-k="r.k">
+              <input v-else-if="r.t === 'number'" :id="ctlId(r.k)" v-model="values[r.k]" class="input" type="number" step="0.01" min="0" :data-k="r.k">
+              <select v-else-if="r.t === 'select'" :id="ctlId(r.k)" v-model="values[r.k]" class="select" :data-k="r.k">
+                <option v-for="o in selectOptions(r)" :key="o.v" :value="o.v">{{ o.label }}</option>
+              </select>
+              <select v-else-if="r.t === 'project'" :id="ctlId(r.k)" v-model="values[r.k]" class="select" :data-k="r.k">
+                <option value="">（无）</option>
+                <option v-for="o in projectChoices" :key="o.id" :value="o.id">{{ o.label }}</option>
+              </select>
+              <label v-else-if="r.t === 'check'" class="opt"><input v-model="values[r.k]" type="checkbox" :data-k="r.k"> 勾选</label>
+              <div v-else-if="r.t === 'radio'" class="opts" role="radiogroup" :aria-labelledby="ctlId(r.k) + '-lab'">
+                <label v-for="o in r.opts" :key="o" class="opt"><input v-model="values[r.k]" type="radio" :name="r.k" :value="o"> {{ o }}</label>
+              </div>
+              <div v-else-if="r.t === 'checks'" class="opts" role="group" :aria-labelledby="ctlId(r.k) + '-lab'">
+                <label v-for="o in r.opts" :key="o" class="opt"><input v-model="values[r.k]" type="checkbox" :name="r.k" :value="o"> {{ o }}</label>
+              </div>
+              <PeoplePicker v-else-if="r.t === 'people'" :id="ctlId(r.k)" :aria-labelledby="ctlId(r.k) + '-lab'" v-model="(values[r.k] as string[])" />
+              <input v-else-if="r.t === 'files'" :aria-labelledby="ctlId(r.k) + '-lab'" class="file-input" type="file" multiple :accept="r.accept || 'image/*'" @change="onFiles(r, $event)">
             </div>
-            <div v-else-if="r.t === 'checks'" class="opts" role="group" :aria-label="r.label">
-              <label v-for="o in r.opts" :key="o" class="opt"><input v-model="values[r.k]" type="checkbox" :name="r.k" :value="o"> {{ o }}</label>
-            </div>
-            <PeoplePicker v-else-if="r.t === 'people'" v-model="(values[r.k] as string[])" />
-            <input v-else-if="r.t === 'files'" class="file-input" type="file" multiple :accept="r.accept || 'image/*'" @change="onFiles(r, $event)">
           </div>
         </div>
-      </div>
-      <div class="modal-foot">
-        <button type="button" class="btn" :disabled="busy" @click="submit">{{ btnText }}</button>
-        <button type="button" class="btn ghost" @click="closeForm">取消</button>
+        <div class="modal-foot">
+          <button type="button" class="btn" :disabled="busy" @click="submit">{{ btnText }}</button>
+          <button type="button" class="btn ghost" @click="closeForm">取消</button>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
