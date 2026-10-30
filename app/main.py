@@ -1063,7 +1063,7 @@ def auth_account_reset_password(request: Request, body: dict):
     except ValueError as e:
         raise HTTPException(422, str(e))
     auth_sessions.clear_reset(tok)
-    return {"ok": True, "note": "密码已重设，其他设备上的旧会话已失效"}
+    return {"ok": True, "note": "密码已重设，其他设备上的旧会话将在下一次请求时失效"}
 
 
 @app.get("/api/auth/me")
