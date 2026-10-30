@@ -8,12 +8,13 @@
 - 能力（capabilities）分 声明/探测/实测 三档来源，默认保守。
 """
 import json
+import logging
 import re
 import shutil
 import threading
 import time
 
-from . import config
+from . import config, net_policy
 
 _lock = threading.Lock()
 
@@ -66,6 +67,11 @@ def _validate_device(dev):
         host = dev.get("host")
         if not isinstance(host, str) or not host.strip():
             raise ValueError("TCP 设备需要 host")
+        ok, why = net_policy.check_host(host)
+        if not ok:
+            if net_policy.enforcing():
+                raise ValueError(why)
+            logging.getLogger(__name__).warning("设备 host 越界（仅告警）：%s", why)
         for pk in ("dap_port", "uart_port"):
             port = dev.get(pk)
             if port is not None and not (isinstance(port, int) and 1 <= port <= 65535):
@@ -166,6 +172,13 @@ def update(device_id, patch):
         if k not in mutable:
             raise ValueError(f"字段不可修改: {k}")
         dev[k] = v
+    if "host" in (patch or {}):
+        # 改 host 等于给门户换一个连接目标，必须和注册走同一套网段校验
+        ok, why = net_policy.check_host(dev.get("host"))
+        if not ok:
+            if net_policy.enforcing():
+                raise ValueError(why)
+            logging.getLogger(__name__).warning("设备 host 越界（仅告警）：%s", why)
     return save(doc)
 
 
