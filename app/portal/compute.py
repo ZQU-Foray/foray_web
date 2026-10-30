@@ -76,7 +76,9 @@ def project_progress(tasks, project_id):
     if not valid:
         return {"done": 0, "total": 0, "percent": None}
     done = sum(1 for t in valid if t.get("status") == "已完成")
-    pct = round(done * 100 / len(valid))
+    # 整数运算做四舍五入（half-up）：Python 的 round() 是银行家舍入，
+    # 1/8→12、3/8→38 会让同一个 .5 有时进有时不进（审计 P3）
+    pct = (done * 200 + len(valid)) // (2 * len(valid))
     return {"done": done, "total": len(valid), "percent": pct}
 
 
@@ -177,6 +179,8 @@ def upcoming_schedule(schedule, days=7, now=None):
     for s in schedule:
         if s.get("_invalid"):
             continue
+        if s.get("status") == "已取消":
+            continue
         st = s.get("start")
         if not st:
             continue
@@ -187,7 +191,8 @@ def upcoming_schedule(schedule, days=7, now=None):
             # 全天且无结束时间：按当天 24 点结束（§4.4 全天按上海时区解释）
             edt = (sdt + timedelta(days=1)).replace(hour=0, minute=0, second=0,
                                                     microsecond=0)
-        ongoing = bool(edt and sdt <= now <= edt)
+        # 结束那一刻不算进行中：否则刚结束的安排会在列表里多留一分钟
+        ongoing = bool(edt and sdt <= now < edt)
         if not ongoing and not (now <= sdt <= until):
             continue
         out.append({"id": s["id"], "name": s["name"], "start": st, "end": end,

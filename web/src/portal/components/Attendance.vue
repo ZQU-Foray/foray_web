@@ -54,7 +54,7 @@ onMounted(refresh);
 <template>
   <div id="attend-box" class="checkin-bar">
     <span class="dot" :class="checkedIn ? 'ok' : 'warn'" aria-hidden="true"></span>
-    <span id="attend-state" class="checkin-text">{{ stateText }}<template v-if="ready"><span class="sep">│</span>我的工时 <b class="t-num">{{ hours }}</b> h</template></span>
+    <span id="attend-state" class="checkin-text" role="status">{{ stateText }}<template v-if="ready"><span class="sep">│</span>我的工时 <b class="t-num">{{ hours }}</b> h</template></span>
     <button
       id="attend-btn"
       type="button"

@@ -20,6 +20,9 @@ from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("Asia/Shanghai")
 WEEK_THRESHOLD_HOURS = 30
+# 工时对外按 2 位小数存储（api 层统一 round(..., 2)），判定前先按同一精度量化：
+# 否则浮点相减得到的 30.000000000000004 判达标、29.999999999999996 判未达标（审计 P3）
+HOURS_DIGITS = 2
 
 # 成员数据表里由门户写入的列（scripts/feishu_attendance_setup.py 按这些列名建列）
 COL_WORK = "有效时长（小时）"
@@ -179,7 +182,7 @@ def _bool_judge(text, hours):
         return text == "达标"
     if hours is None:
         return None
-    return hours > WEEK_THRESHOLD_HOURS
+    return round(float(hours), HOURS_DIGITS) > WEEK_THRESHOLD_HOURS
 
 
 def is_checked_in(m, today_start, live=None):

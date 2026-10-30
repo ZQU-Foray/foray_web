@@ -810,7 +810,11 @@ function onDeviceSwitch(_id: string | null, previous: string | null): void {
 }
 
 /** 启动：注册设备切换处理、读预设、1 秒兜底轮询（WS 未挂载/断开时界面仍与服务器同步）、RTT 循环 */
+let shootStarted = false;
+
 export function startShoot(): void {
+  if (shootStarted) return;
+  shootStarted = true;
   deviceCtx.onChange(onDeviceSwitch);
   resetTelemTexts();
   void loadMotorPresets();
