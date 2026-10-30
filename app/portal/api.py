@@ -155,6 +155,8 @@ def sync_status():
             "syncing": sync.scheduler().is_running(),
             "sync_enabled": config.PORTAL_SYNC_ENABLED,
             "sync_interval_sec": config.PORTAL_SYNC_INTERVAL_SEC,
+            "next_run_in_sec": sync.scheduler().next_run_in(),
+            "fail_streak": sync.scheduler().fail_streak(),
             "cache": _cache_status()}
 
 

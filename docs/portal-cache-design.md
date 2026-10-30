@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 1 | 冲突规则 | **已完成**（本文 §2，代码 `app/portal/cache_rules.py`） |
 | 2 | 本地库结构（库版本 1 → 2）+ 迁移 + 飞书镜像 | **已完成**（本文 §3–§5） |
-| 3 | 网页写入改走队列 + 后台推送线程 | **已完成**（本文 §6），默认仍直写，开关 `PORTAL_WRITE_MODE=cache` |
+| 3 | 网页写入改走队列 + 后台推送线程 | **已完成**（本文 §6），2026-10-29 起默认 `PORTAL_WRITE_MODE=cache`（回滚设 `direct`） |
 | 4 | 读接口看到本地改动（快照由「镜像 ⊕ 未落地操作」生成） | **已完成**（本文 §7） |
 | 5 | 前端：写完立即刷新、显示同步状态 | **已完成**（本文 §8） |
 | 6 | 按表逐步切换到 cache 并上线 | **进行中**：2026-10-21 已部署生产，第一批日程、事项、项目已切到 cache；采购、考勤待第一批跑稳后再切 |
@@ -135,8 +135,8 @@ pending ──被后续操作取代──▶ cancelled
 
 | 环境变量 | 默认 | 作用 |
 | --- | --- | --- |
-| `PORTAL_WRITE_MODE` | `direct` | `direct` 直写飞书（与之前一致）；`cache` 先进本地队列、立即返回 |
-| `PORTAL_CACHE_TABLES` | 全部五张 | cache 模式下走队列的表：`tasks,projects,schedule,procurement,members` |
+| `PORTAL_WRITE_MODE` | `cache` | `cache`（别名 `queue`）先进本地队列、立即返回；`direct` 直写飞书（回滚用） |
+| `PORTAL_CACHE_TABLES` | `tasks,projects,schedule,procurement` | cache 模式下走队列的表；`members` 默认直写（考勤关键路径），可显式加回来 |
 | `PORTAL_PUSH_ENABLED` | `1` | 推送线程开关（默认常开，direct 模式下也要排空遗留队列） |
 | `PORTAL_PUSH_IDLE` | `5` | 队列空闲时多久查一次；有新写入会立即唤醒 |
 | `PORTAL_PUSH_MAX_BACKOFF` | `300` | 临时失败的退避上限（秒） |

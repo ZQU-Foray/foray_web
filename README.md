@@ -35,7 +35,9 @@
 
 - 本地缓存库与飞书双向同步（2026-10-21 起，进行中）：冲突规则、库版本 2 的表结构、迁移与后续步骤见
   `docs/portal-cache-design.md`；旧库升级用 `scripts/portal_migrate.py`（部署时自动执行）；
-  写入模式开关 `PORTAL_WRITE_MODE`（默认 direct）与队列运维 `scripts/portal_queue.py` 见运维手册 §8.2；
+  写入模式开关 `PORTAL_WRITE_MODE`（2026-10-29 起默认 `cache`：页面写入先落本地队列、立即返回，
+  由推送线程推到飞书；回滚设 `PORTAL_WRITE_MODE=direct`）与队列运维 `scripts/portal_queue.py`
+  见运维手册 §8.2；
 - 前端（2026-10 起 Vue 3）：开发、构建、回退与架构记录见 `docs/frontend-vue.md`；
   **改前端后必须在 `web/` 执行 `npm run build` 并连同 `static/app/` 一起部署**。
 - 运维手册：`docs/portal-operations.md`（上线形态/部署升级/备份恢复/凭据轮换/监控巡检/应急账号/

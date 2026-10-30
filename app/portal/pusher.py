@@ -38,6 +38,9 @@ def backoff(attempts):
 class Pusher:
     """后台推送线程；client_factory 默认是飞书写客户端（测试可注入假客户端）。"""
 
+    # 每推送多少条操作重建一次本地快照：批内合并重建，避免「全量重建」被条数放大
+    REBUILD_EVERY = 20
+
     def __init__(self, client_factory=None):
         self._client_factory = client_factory or portal_writer.FeishuWriter
         self._wake = threading.Event()
@@ -104,17 +107,26 @@ class Pusher:
     # ---- 推送 ----
 
     def drain(self, limit=100):
-        """把当前可推的操作推完（单轮最多 limit 条），返回处理条数。"""
+        """把当前可推的操作推完（单轮最多 limit 条），返回处理条数。
+
+        重建策略：每 REBUILD_EVERY 条重建一次本地快照，本批结束再补最后一次。
+        逐条重建会把「全量重建」放大 N 倍（5000 条记录一次约 180ms，100 条操作
+        就是 18s）；冲突回退「飞书为准」在批末重建同样能反映到页面。
+        """
+        from . import view
         n = 0
+        last = 0
         while n < limit and not self._stop.is_set():
             op = cache_store.claim_next()
             if op is None:
                 break
             self.process(op)
-            # 每条推完（含冲突回退为飞书值、失败）立即本地重建，页面不必等同步
-            from . import view
-            view.refresh()
             n += 1
+            if n - last >= self.REBUILD_EVERY:
+                view.refresh()
+                last = n
+        if n and last != n:
+            view.refresh()       # 批尾补一次：不足一批的操作也要立即可见
         return n
 
     def process(self, op):

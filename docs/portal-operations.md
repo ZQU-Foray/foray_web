@@ -476,14 +476,16 @@ systemctl start portal.service
 
 ### 8.2 写入模式与本地队列（2026-10-21 起）
 
-- **默认 `PORTAL_WRITE_MODE=direct`**：网页写入直写飞书，行为与之前一致。推送线程 `portal-push`
-  也会运行，但队列通常是空的。
-- **开启队列**：生产上用 systemd 附加配置 `/etc/systemd/system/portal.service.d/write-mode.conf`
-  （`[Service]` 下 `Environment=PORTAL_WRITE_MODE=cache` 与 `Environment=PORTAL_CACHE_TABLES=…`），
-  不动 `.env`；改完 `systemctl daemon-reload && systemctl restart portal.service`，启动日志
-  「门户写入模式 cache」即生效。（`.env` 里同名变量优先于附加配置，所以 `.env` 里不要再写这两项。）
-  **现状（2026-10-21 起）**：日程、事项、项目走队列；采购、考勤仍直写。写接口会立即返回（响应里 `queued: true`），
-  推送线程几秒内推到飞书，页面立即显示改动。前端提示与同步状态展示已在缓存库第 5 步做好；
+- **默认 `PORTAL_WRITE_MODE=cache`（2026-10-29 起）**：网页写入先入本地队列立即返回（响应里
+  `queued: true`），推送线程 `portal-push` 按序推到飞书，页面不等飞书 RTT；新建等排队写入返回
+  `loc_` 开头的本地临时 ID，推送成功后自动换成飞书 `rec_` ID。
+- **默认排队表**：`PORTAL_CACHE_TABLES=tasks,projects,schedule,procurement`。`members` 不在默认列表
+  ——考勤签到/签退与零点结算写的是 `members` 列，属关键路径，推送失败会让工时账目不一致，保持直写。
+- **回滚**：`Environment=PORTAL_WRITE_MODE=direct`（systemd 附加配置
+  `/etc/systemd/system/portal.service.d/write-mode.conf`，或 `.env`），`systemctl daemon-reload &&
+  systemctl restart portal.service`，启动日志「门户写入模式 direct」即回到旧行为；队列里未推完的操作
+  在 direct 下仍会被推送线程继续排空。
+- **改排队表**：`PORTAL_CACHE_TABLES` 逗号分隔，改完同样重启；`.env` 里同名变量优先于附加配置。
   生产上按表逐步切换（第 6 步），建议顺序：日程、事项 → 采购 → 考勤。
 - **观测**：`GET /api/portal/sync-status` 的 `cache` 字段（待推 / 推送中 / 失败 / 未确认冲突 / 最老未推送时间）；
   日志关键字「推送新建」「推送修改」「被飞书拒绝」「冲突」「暂时失败」。巡检退出码 8 见 §E。

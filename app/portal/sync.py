@@ -32,6 +32,10 @@ TABLE_ORDER = ("projects", "tasks", "milestones", "schedule", "members", "roster
 # 页面上不展示单条记录链接的表：跳过 batch_get，少打飞书接口
 NO_LINK_TABLES = ("duty",)
 MAX_PAGES = 200          # 分页上界：防 page_token 缺失/重复导致死循环持锁
+# 字段元数据缓存：{table_id: {"at": 拉取时间戳, "map": {飞书列名: field_id}}}
+# 列名→field_id 对照几乎不变，缓存后每轮不再为 8 张表各打一次 fields 请求；
+# 缓存过期或配置字段对不上时强制重拉，改字段名不会被缓存挡住
+FIELDS_CACHE_META = "fields_cache"
 
 
 class SyncError(Exception):
@@ -116,6 +120,8 @@ class FeishuReader:
         self.cfg = cfg
         self._token = None
         self._token_at = 0.0
+        # 本轮发出的真实 HTTP 请求数（日志与验收用：请求数是同步速度的主指标）
+        self.request_count = 0
 
     def _tenant_token(self, force=False):
         app_id = self.cfg["app_id"]
@@ -142,6 +148,8 @@ class FeishuReader:
             hdrs["Authorization"] = "Bearer " + self._tenant_token()
         req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
         timeout = timeout or config.PORTAL_SYNC_TIMEOUT_SEC
+        self.request_count += 1
+
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.loads(r.read().decode())
@@ -188,7 +196,7 @@ class FeishuReader:
             pages += 1
             if pages > MAX_PAGES:
                 raise SyncError("parse", f"字段分页超过上限 {MAX_PAGES}")
-            params = {"page_size": 100}
+            params = {"page_size": config.PORTAL_SYNC_PAGE_SIZE}
             if token:
                 params["page_token"] = token
             r = self._get(
@@ -252,15 +260,21 @@ class FeishuReader:
         return items
 
 
-    def record_links(self, table_id, record_ids):
+    def record_links(self, table_id, record_ids, known=None):
         """记录链接：官方 batch_get(with_shared_url=true) → {record_id: shared_url}。
 
         阶段 1 实测：search/列表接口**不返回**链接，且 record_url 的 token 与
         record_id 不同（不能构造），只有 batch_get/get 能拿到官方链接。
         链接属展示增强：失败不影响数据快照（调用方兜底）。
+
+        known：上一轮已取到的链接。只对**还缺链接**的 record_id 发请求（差集补取）：
+        全量重取会让每张表每轮白白多出 ceil(N/100) 次 batch_get，而链接几乎不变。
         """
         out = {}
-        ids = [r for r in (record_ids or []) if r]
+        known = known or {}
+        ids = [r for r in (record_ids or []) if r and r not in known]
+        if not ids:
+            return out
         step = max(1, min(config.PORTAL_LINK_BATCH, 100))
         for i in range(0, len(ids), step):
             chunk = ids[i:i + step]
@@ -277,6 +291,46 @@ class FeishuReader:
                 if rec.get("record_id") and url:
                     out[rec["record_id"]] = url
         return out
+
+
+def _load_fields_cache():
+    """读字段元数据缓存（meta 表里的 JSON；坏了就当空）。"""
+    try:
+        data = json.loads(portal_store.get_meta(FIELDS_CACHE_META) or "{}")
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_fields_cache(cache):
+    """写字段元数据缓存；写失败不影响本轮同步（下轮重新拉取即可）。"""
+    try:
+        portal_store.set_meta(
+            FIELDS_CACHE_META,
+            json.dumps(cache, ensure_ascii=False, sort_keys=True))
+    except Exception as e:
+        log.warning("字段元数据缓存写失败: %s", e)
+
+
+def _cached_fields(reader, table_id, force=False):
+    """字段元数据（飞书列名 → field_id），带 TTL 缓存。
+
+    TTL 内直接复用，省掉每轮每表一次 fields 请求；force=True 或过期才真正拉取。
+    每轮同步最后都会把**实际用到**的对照存进 meta（view.save_sync_meta），
+    所以缓存只影响请求数，不影响快照内容。
+    """
+    cache = _load_fields_cache()
+    entry = cache.get(table_id) or {}
+    ttl = config.PORTAL_FIELDS_CACHE_TTL_SEC
+    fresh = (not force
+             and isinstance(entry.get("map"), dict)
+             and time.time() - float(entry.get("at") or 0) < ttl)
+    if fresh:
+        return dict(entry["map"])
+    name2id = reader.fields(table_id)
+    cache[table_id] = {"at": time.time(), "map": name2id}
+    _save_fields_cache(cache)
+    return name2id
 
 
 def run_sync():
@@ -313,27 +367,41 @@ def run_sync():
                 log.info("语义表 %s 未映射（table_id 为空），本次快照置空", t)
                 raw_items[t] = []
                 continue
-            name2id = reader.fields(tid)      # 字段名 → field_id 对照
+            # 字段名 → field_id 对照（TTL 缓存命中时省一次请求）
+            name2id = _cached_fields(reader, tid)
             # §6.4.6 结构性校验：配置的字段在源表必须真实存在（字段被删/改
             # 名 → 本次快照失败并保留旧版，而不是把整表读成"缺值"）
             known_ids = set(name2id.values())
             missing = [sem for sem, fid in (tcfg.get("fields") or {}).items()
                        if fid and fid not in known_ids]
             if missing:
+                # 对不上不等于配置错：缓存可能滞后（字段刚改名/新增）。
+                # 强制重拉一次再判定，避免把「缓存过期」误报成「字段不存在」
+                name2id = _cached_fields(reader, tid, force=True)
+                known_ids = set(name2id.values())
+                missing = [sem for sem, fid in (tcfg.get("fields") or {}).items()
+                           if fid and fid not in known_ids]
+            if missing:
                 raise SyncError("config",
                                 f"表 {t} 的配置字段在源表不存在: {missing}")
             raw_items[t] = reader.records(tid)
             field_ids[t] = name2id
-        # 记录链接（展示增强）：官方 batch_get 取 shared_url；某表失败时沿用上一轮的链接
+        # 记录链接（展示增强）：官方 batch_get 取 shared_url；只补还缺链接的记录，
+        # 某表失败时沿用上一轮的链接（链接过期不影响快照）
         links = view._meta_json(view.LINKS_META)
         if config.PORTAL_LINKS_ENABLED:
             for t in TABLE_ORDER:
                 if not (cfg["tables"].get(t) or {}).get("table_id") or t in NO_LINK_TABLES:
                     continue
+                tids = [it.get("record_id") for it in raw_items[t]]
                 try:
-                    links[t] = reader.record_links(
-                        cfg["tables"][t]["table_id"],
-                        [it.get("record_id") for it in raw_items[t]])
+                    known = links.get(t) or {}
+                    fresh = reader.record_links(
+                        cfg["tables"][t]["table_id"], tids, known=known)
+                    # 合并新一轮链接，并丢掉本轮已不存在的记录（防 meta 无界增长）
+                    now_ids = {r for r in tids if r}
+                    links[t] = {rid: url for rid, url in {**known, **fresh}.items()
+                                if rid in now_ids}
                 except Exception as e:
                     log.warning("表 %s 记录链接获取失败（沿用上一轮链接）: %s", t, e)
         view.save_sync_meta(field_ids, links)
@@ -343,8 +411,12 @@ def run_sync():
         # 观感即"每次同步抖一下"，且快照库每分钟空写一轮。
         counts = view.rebuild(cfg=cfg, sync_round=True, duration=time.time() - started)
         if counts is None:
-            log.info("同步完成（数据无变化，不发布新版本）")
+            log.info("同步完成（数据无变化，不发布新版本）请求数=%d 耗时=%.1fs",
+                     reader.request_count, time.time() - started)
             return {"unchanged": True}
+        log.info("同步完成 请求数=%d 耗时=%.1fs 条数=%s",
+                 reader.request_count, time.time() - started,
+                 {t: counts[t] for t in TABLE_ORDER if t in counts})
         return counts
     except SyncError:
         raise
@@ -388,6 +460,8 @@ class Scheduler:
         self._last_manual_ok = 0.0
         self._last_manual_by_user = {}     # 按用户的限频窗口（阶段 8）
         self._running = False
+        self._fail_streak = 0              # 连续失败轮数（轮级退避用，成功清零）
+        self._next_run_at = 0.0            # 下一轮计划时间（/sync-status 展示）
 
     # ---- 生命周期 ----
 
@@ -409,19 +483,25 @@ class Scheduler:
 
     def _loop(self):
         # 启动即触发首轮（服务启动不等待飞书：本线程后台自跑）
-        try:
-            self._run_once()
-        except Exception:
-            log.exception("门户同步首轮异常（线程继续存活）")
+        self._run_once()
         while not self._stop.is_set():
-            self._wake.wait(config.PORTAL_SYNC_INTERVAL_SEC)
+            self._wake.wait(self._wait_sec())
             self._wake.clear()
             if self._stop.is_set():
                 return
-            try:
-                self._run_once()
-            except Exception:
-                log.exception("门户同步循环异常（线程继续存活）")
+            self._run_once()
+
+    def _wait_sec(self):
+        """下一轮等待秒数：连续失败按 2 的幂退避（封顶 PORTAL_SYNC_BACKOFF_MAX_SEC）。
+
+        失败也固定间隔全量重跑，会在上游限流/宕机时放大请求；退避让失败期请求量降一个量级，
+        恢复成功后 `_fail_streak` 清零，下一轮立刻回到正常间隔。
+        """
+        base = max(1, config.PORTAL_SYNC_INTERVAL_SEC)
+        if not self._fail_streak:
+            return base
+        return max(base, min(base * (2 ** min(self._fail_streak, 4)),
+                             config.PORTAL_SYNC_BACKOFF_MAX_SEC))
 
     # ---- 执行 ----
 
@@ -430,10 +510,12 @@ class Scheduler:
             return                             # 已在同步中：手动请求自然合并
         self._running = True
         self._last_start = time.time()
+        ok = False
         try:
             portal_store.mark_attempt("")
             counts = run_sync()
             self._last_manual_ok = time.time()
+            ok = True
             log.info("门户同步完成: %s", counts)
         except SyncError as e:
             portal_store.mark_attempt(e.klass)   # 失败保留旧快照
@@ -444,6 +526,11 @@ class Scheduler:
         finally:
             self._running = False
             self._lock.release()
+            if ok:
+                self._fail_streak = 0
+            else:
+                self._fail_streak += 1
+            self._next_run_at = time.time() + self._wait_sec()
 
     # ---- 手动刷新（§6.4：合并 + 每用户限频由全局最小间隔承担） ----
 
@@ -484,6 +571,16 @@ class Scheduler:
 
     def is_running(self):
         return self._running
+
+    def next_run_in(self):
+        """距离下一轮同步的秒数（正在跑返回 0）；供 /sync-status 展示。"""
+        if self._running or not self._next_run_at:
+            return 0
+        return max(0, int(self._next_run_at - time.time()))
+
+    def fail_streak(self):
+        """连续失败轮数（0 表示上一轮成功）。"""
+        return self._fail_streak
 
     def is_alive(self):
         """后台同步线程是否在跑（PORTAL_SYNC_ENABLED=0 或已停止时为 False）。"""
