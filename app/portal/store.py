@@ -93,8 +93,9 @@ def _db():
                 PRIMARY KEY(version, table_name, record_id))""")
             conn.execute("""CREATE TABLE IF NOT EXISTS quality(
                 version INTEGER, table_name TEXT, record_id TEXT, issue TEXT)""")
-            # 本地缓存库的表（版本 2）：新库直接建，旧库由迁移脚本补建
+            # 本地缓存库的表（版本 2）与工作台布局表（版本 3）：新库直接建，旧库由迁移脚本补建
             migrations.create_v2_objects(conn)
+            migrations.create_v3_objects(conn)
             if found is None:
                 conn.execute(
                     "INSERT INTO meta(key, value) VALUES('schema_version', ?)",

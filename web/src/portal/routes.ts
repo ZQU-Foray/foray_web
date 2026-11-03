@@ -12,9 +12,11 @@ import ScheduleDetail from "./pages/ScheduleDetail.vue";
 import Procurement from "./pages/Procurement.vue";
 import ProcurementDetail from "./pages/ProcurementDetail.vue";
 import Quality from "./pages/Quality.vue";
+import Workbench from "./pages/Workbench.vue";
 
 export const ROUTES: RouteDef[] = [
   { path: "/", name: "overview", component: Overview, meta: { title: "总览", crumb: "总览" } },
+  { path: "/workbench", name: "workbench", component: Workbench, meta: { title: "个人工作台", crumb: "个人工作台" } },
   { path: "/attendance", name: "attendance", component: Attendance, meta: { title: "考勤", crumb: "考勤" } },
   { path: "/procurement", name: "procurement", component: Procurement, meta: { title: "物资采购", crumb: "物资采购" } },
   { path: "/procurement/:id", name: "procurement-detail", component: ProcurementDetail, meta: { title: "采购详情", crumb: "物资采购 · 详情" } },

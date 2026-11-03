@@ -16,7 +16,8 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 from .. import config
-from . import attendance, cache_store, compute, normalize, store, sync, writes
+from . import (attendance, cache_store, compute, normalize, store, sync, workbench,
+               writes)
 
 router = APIRouter(prefix="/api/portal")
 
@@ -2258,3 +2259,61 @@ def _check_out_cached(request, open_id, m):
         est = round(hours, attendance.HOURS_DIGITS)
     return {"ok": True, "session_hours": round(hours, 2), "work_hours": est,
             "anomalous": anomalous, "queued": True, "sync_triggered": False}
+
+
+# ---------------- 个人工作台 ----------------
+
+def _workbench_open_id(request):
+    """当前会话在飞书里的 open_id；本地/应急会话没有这个身份，返回空串。"""
+    rec = getattr(request.state, "session", None) or {}
+    if rec.get("role") != "member":
+        return ""
+    return (rec.get("extra") or {}).get("open_id") or ""
+
+
+def _require_workbench_owner(request):
+    """布局是「每个人自己的」：没有飞书身份的会话不能读写，避免共用一份布局。"""
+    open_id = _workbench_open_id(request)
+    if not open_id:
+        raise HTTPException(403, "当前会话没有飞书身份，个人工作台布局需要成员身份")
+    return open_id
+
+
+@router.get("/workbench")
+def workbench_page(request: Request):
+    """个人工作台：卡片目录 + 本人布局 + 按布局算好的卡片数据（一次请求给全）。"""
+    open_id = _workbench_open_id(request)
+    snap, env = _require_snapshot()
+    catalog = workbench.catalog_view()
+    if not snap:
+        return {**env, "catalog": catalog, "layout": workbench.default_layout(),
+                "saved": False, "updated_at": None, "cards": []}
+    saved = workbench.load_layout(open_id) if open_id else None
+    layout = saved or workbench.default_layout()
+    return {**env, "catalog": catalog, "layout": layout, "saved": saved is not None,
+            "updated_at": workbench.layout_updated_at(open_id) if open_id else None,
+            "cards": workbench.build_cards(snap, open_id, layout)}
+
+
+@router.put("/workbench")
+def workbench_save(body: dict, request: Request):
+    """保存本人布局（body: {"cards": [{"card_id","width"}]}）；不合法整份 422。"""
+    _check_same_origin(request)
+    open_id = _require_workbench_owner(request)
+    try:
+        layout = workbench.save_layout(open_id, body)
+    except workbench.WorkbenchLayoutError as e:
+        raise HTTPException(422, str(e)) from None
+    _audit("workbench_layout_save", cards=len(layout), by=_who(request))
+    return {"ok": True, "layout": layout, "saved": True,
+            "updated_at": workbench.layout_updated_at(open_id)}
+
+
+@router.delete("/workbench")
+def workbench_reset(request: Request):
+    """恢复默认布局（幂等）：删掉本人保存的那一行。"""
+    _check_same_origin(request)
+    open_id = _require_workbench_owner(request)
+    layout = workbench.reset_layout(open_id)
+    _audit("workbench_layout_reset", by=_who(request))
+    return {"ok": True, "layout": layout, "saved": False, "updated_at": None}

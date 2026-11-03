@@ -1,13 +1,16 @@
-"""快照库结构版本与迁移步骤（版本 1 → 2：加本地缓存库的五张表）。
+"""快照库结构版本与迁移步骤。
 
-- 新建库：store._db() 直接按最新结构建表（调用 create_v2_objects）；
+版本 1 → 2：加本地缓存库的五张表；
+版本 2 → 3：加个人工作台布局表 workbench_layouts。
+
+- 新建库：store._db() 直接按最新结构建表（调用 create_v2_objects / create_v3_objects）；
 - 旧库升级：只能由 scripts/portal_migrate.py 执行（先备份、再迁移、再校验），
   服务启动时**不会**自动迁移——版本闸门仍是故障关闭语义，见运维手册 §8.1；
 - 每个迁移步骤只做加法（新表/新索引），不改写既有快照数据。
 """
 import sqlite3
 
-LATEST = 2
+LATEST = 3
 
 # 版本 2：本地缓存库（网页改动先落本地，再异步推到飞书；飞书改动再合并回来）
 V2_STATEMENTS = (
@@ -83,8 +86,20 @@ V2_STATEMENTS = (
         ON attendance_sessions(open_id) WHERE state = 'open'""",
 )
 
+# 版本 3：个人工作台布局（每人一行；layout 是卡片 id 与宽度的有序 JSON 列表）
+V3_STATEMENTS = (
+    """CREATE TABLE IF NOT EXISTS workbench_layouts(
+        open_id TEXT PRIMARY KEY,
+        layout TEXT NOT NULL,
+        updated_at REAL NOT NULL)""",
+)
+
 # 版本 2 新增的表（迁移校验与诊断用）
 V2_TABLES = ("remote_records", "outbox", "id_map", "conflicts", "attendance_sessions")
+# 版本 3 新增的表
+V3_TABLES = ("workbench_layouts",)
+# 每个版本引入的表：迁移脚本按目标版本取并集核对（见 required_tables）
+TABLES_BY_VERSION = {2: V2_TABLES, 3: V3_TABLES}
 
 
 class MigrationError(RuntimeError):
@@ -97,12 +112,31 @@ def create_v2_objects(conn):
         conn.execute(sql)
 
 
+def create_v3_objects(conn):
+    """建版本 3 的表（全部 IF NOT EXISTS，可重复执行）。"""
+    for sql in V3_STATEMENTS:
+        conn.execute(sql)
+
+
 def _v1_to_v2(conn):
     create_v2_objects(conn)
 
 
+def _v2_to_v3(conn):
+    create_v3_objects(conn)
+
+
 # 起始版本 → 升一级的步骤
-STEPS = {1: _v1_to_v2}
+STEPS = {1: _v1_to_v2, 2: _v2_to_v3}
+
+
+def required_tables(target=LATEST):
+    """升到 target 后应有的新增表（各版本并集）：迁移后校验与诊断用。"""
+    out = []
+    for ver in sorted(TABLES_BY_VERSION):
+        if ver <= target:
+            out.extend(TABLES_BY_VERSION[ver])
+    return tuple(out)
 
 
 def path(found, target=LATEST):
