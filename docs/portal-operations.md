@@ -217,6 +217,7 @@ curl -s http://127.0.0.1/api/portal/sync-status -H "Authorization: Bearer <成�
 | 忘记密码（断网） | 维护者在服务器本地重置（见下） |
 | 应急账号 | **已停用**（`AUTH_EMERGENCY_ENABLED` 默认 0）：`POST /api/auth/emergency/login` 返回 404 明确提示；登录页无应急表单；`scripts/emergency_ctl.py` 退役（保留文件供历史文档引用） |
 | 会话 | `config/auth/sessions.json` 增 `auth_method`(feishu\|local)、`account_id`、`onboarded`；成员 12h（`AUTH_SESSION_MEMBER_TTL`） |
+| 会话裁决 | 每次请求按账号库当前值判一次：账号停用/改密后旧会话立即失效；**未开通（首次登录、账号库还没有该 open_id）的会话保持可用**，由 onboarding 闸门只放行开通相关路径——否则开通接口也会 401，首登永远走不通；会话自报 `onboarded` 却查不到账号仍按失效处理（fail-closed） |
 
 **维护者本地操作（断网兜底）**：
 

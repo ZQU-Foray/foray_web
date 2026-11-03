@@ -155,6 +155,11 @@ def _member_state(rec: dict) -> str:
 
     旧实现只比较 extra 里的 revoked_after 快照，改密/禁用后旧会话仍可用；
     现在每次读账号当前值，代价是一次 stat + 内存查表（accounts 有 mtime 缓存）。
+
+    首登例外：飞书成员第一次登录时本站还没有账号行，这是正常状态，不能判
+    失效——否则 /api/auth/me 直接 401，开通接口也跟着拒绝，首登永远走不通。
+    这种会话交给 guard 的 onboarding 闸门（只放行开通相关路径）。只有「会话
+    自报已开通、账号库里却查不到」才按失效处理，保持 fail-closed。
     """
     from . import accounts          # 局部导入，避免 auth 包内循环依赖
     open_id = (rec.get("extra") or {}).get("open_id", "")
@@ -164,7 +169,9 @@ def _member_state(rec: dict) -> str:
         a = accounts.get(open_id)
     except Exception:
         return "revoked"
-    if not a or a.get("status") != "active":
+    if not a:
+        return "revoked" if (rec.get("extra") or {}).get("onboarded") else ""
+    if a.get("status") != "active":
         return "revoked"
     ra = a.get("revoked_after") or 0
     if ra and rec.get("created", 0) < ra:

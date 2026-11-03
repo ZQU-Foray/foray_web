@@ -36,33 +36,41 @@ class _AuthCase(unittest.TestCase):
         self._tmp.cleanup()
 
     @staticmethod
-    def _member_rec(open_id, created=None):
+    def _member_rec(open_id, created=None, onboarded=False):
         now = created or time.time()
         return {"user": f"feishu:{open_id}", "role": "member", "created": now,
                 "expires": now + 3600, "last_recheck_ok": now,
-                "extra": {"open_id": open_id}}
+                "extra": {"open_id": open_id, "onboarded": onboarded}}
 
 
 class MemberSessionTests(_AuthCase):
     def test_active_account_is_ok(self):
         accounts.create("ou_1", "member1", "password123")
-        self.assertEqual(sessions.session_state(self._member_rec("ou_1")), "ok")
+        self.assertEqual(
+            sessions.session_state(self._member_rec("ou_1", onboarded=True)), "ok")
 
     def test_disabled_account_revokes_session(self):
         accounts.create("ou_1", "member1", "password123")
-        rec = self._member_rec("ou_1")
+        rec = self._member_rec("ou_1", onboarded=True)
         accounts.disable("ou_1")
         self.assertEqual(sessions.session_state(rec), "revoked")
 
     def test_password_change_revokes_older_session(self):
         accounts.create("ou_1", "member1", "password123")
-        rec = self._member_rec("ou_1", created=time.time() - 5)
+        rec = self._member_rec("ou_1", created=time.time() - 5, onboarded=True)
         accounts.set_password("ou_1", "newpassword123")
         self.assertEqual(sessions.session_state(rec), "revoked")
 
-    def test_unknown_account_revokes_session(self):
+    def test_unknown_account_revokes_onboarded_session(self):
+        """会话自报已开通、账号库却查不到 → 按失效处理（fail-closed）。"""
         self.assertEqual(
-            sessions.session_state(self._member_rec("ou_missing")), "revoked")
+            sessions.session_state(
+                self._member_rec("ou_missing", onboarded=True)), "revoked")
+
+    def test_first_login_without_account_is_ok(self):
+        """首登成员还没有账号行：会话必须可用，否则开通接口也 401（死锁）。"""
+        self.assertEqual(
+            sessions.session_state(self._member_rec("ou_new", onboarded=False)), "ok")
 
 
 class EmergencySessionTests(_AuthCase):

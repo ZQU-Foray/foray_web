@@ -230,6 +230,9 @@ def start_service(with_member=False, env_extra=None):
         "AUTH_ACCOUNTS_FILE": os.path.join(_tmpdir, "accounts.json"),
         "AUTH_AUDIT_FILE": os.path.join(_tmpdir, "audit.log"),
         "AUTH_LOCAL_MAX_FAIL": "3", "AUTH_LOCAL_LOCK_SEC": "5",
+        # 设备 host 策略（审计 P1-5）默认只放行本机推断网段；夹具用
+        # 192.168.1.50 表示台架设备，这里显式放行该网段（仅测试实例）
+        "DEVICE_HOST_ALLOWLIST": "192.168.1.0/24",
         # 应急账号 D2 起生产默认关闭；测试基建仍用其构造"仅调试"身份，
         # 过渡期显式开启（生产部署不带此变量）
         "AUTH_EMERGENCY_ENABLED": "1",
@@ -297,6 +300,9 @@ def restart_service(env_extra=None):
         "AUTH_ACCOUNTS_FILE": os.path.join(_tmpdir, "accounts.json"),
         "AUTH_AUDIT_FILE": os.path.join(_tmpdir, "audit.log"),
         "AUTH_LOCAL_MAX_FAIL": "3", "AUTH_LOCAL_LOCK_SEC": "5",
+        # 设备 host 策略（审计 P1-5）默认只放行本机推断网段；夹具用
+        # 192.168.1.50 表示台架设备，这里显式放行该网段（仅测试实例）
+        "DEVICE_HOST_ALLOWLIST": "192.168.1.0/24",
         "AUTH_EMERGENCY_ENABLED": "1",
     })
     if env_extra:
