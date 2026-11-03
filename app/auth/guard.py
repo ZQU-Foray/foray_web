@@ -16,6 +16,7 @@ D2（阶段 9）新增：
 | 调试页面 | /debug /debug/ | 302 登录 | 放行 | 放行 | 302 login?recheck=1 |
 | 身份 API | /api/auth/me、/api/auth/logout | 401 | 放行 | 放行 | 放行（自查身份） |
 | 管理 API | /api/portal/* | 401 | 403 | 放行 | 403 recheck_unavailable |
+| MCP | /mcp | 401（端点内验 agent 令牌） | 同左 | 同左 | 同左 |
 | 调试 API | 其余 /api/*（旧+新） | 401 | 放行 | 放行 | 403 recheck_unavailable |
 | 调试 WS | /ws/*（6 条） | 4401 | 放行 | 放行 | 4403；命令前再查 |
 
@@ -45,6 +46,9 @@ ONBOARDING_PAGES = {"/onboarding", "/reset"}
 ONBOARDING_API = {"/api/auth/account/onboard", "/api/auth/account/reset-password"}
 SELF_API = {"/api/auth/me", "/api/auth/logout"}
 ADMIN_API_PREFIX = "/api/portal"
+# 维护者接口（2026-11）：agent 令牌管理。应急会话也要能用，不能走 admin_api 的
+# 「应急仅调试」规则；具体是不是维护者由端点自己判（PORTAL_MAINTAINER_IDS）。
+MAINTAINER_API_PREFIX = "/api/portal/agents"
 _ASSET_EXT = (".css", ".js", ".png", ".jpg", ".jpeg", ".svg", ".ico",
               ".woff", ".woff2", ".ttf", ".map")
 
@@ -104,6 +108,14 @@ def classify(path: str) -> str:
         return "portal_page"
     if path in SELF_API:
         return "self_api"
+    if path == "/mcp" or path.startswith("/mcp/"):
+        # Agent MCP 接入：自带 agent 令牌鉴权（app/mcp/server.py），
+        # 不接受浏览器会话——中间件直接放行，越权由端点按 scope 拒绝。
+        return "mcp_api"
+    if path.startswith(MAINTAINER_API_PREFIX):
+        # 先于 ADMIN_API_PREFIX 匹配：agent 令牌管理对应急身份开放，
+        # 是否维护者由端点判（否则应急账号永远签发不了令牌）
+        return "maintainer_api"
     if path.startswith(ADMIN_API_PREFIX):
         return "admin_api"
     if path.startswith("/api/") or path.startswith("/auth/"):
@@ -152,16 +164,22 @@ def _decision(path_kind: str, role: str, state: str,
         if role != ROLE_MEMBER:
             return (403, {"detail": "应急身份仅可访问调试模块"}, False)
         return None
+    if path_kind == "maintainer_api":
+        # 两种角色都放行，端点内用 _require_maintainer 判白名单
+        return None
     return None                              # debug_page/self_api/debug_api：成员+应急
 
 
 async def auth_middleware(request, call_next):
     if request.method not in ("GET", "HEAD", "OPTIONS") and not same_origin(request):
         return JSONResponse({"detail": "跨站请求被拒绝"}, status_code=403)
+    kind = classify(request.url.path)
+    if kind == "mcp_api":
+        # agent 令牌单独鉴权（端点内校验 Bearer），浏览器会话既不适用也不放行
+        return await call_next(request)
     tok = extract_token(request)
     rec = sessions.get(tok) if tok else None
     state = sessions.session_state(rec) if rec else None
-    kind = classify(request.url.path)
     onboard = bool(rec and rec.get("role") == ROLE_MEMBER
                    and not (rec.get("extra") or {}).get("onboarded", False))
     decision = _decision(kind, rec.get("role") if rec else None, state,
