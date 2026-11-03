@@ -4,7 +4,8 @@
 import { getJSON, sendJSON, upload } from "@/shared/http";
 import type {
   AttendancePage, AttendanceStatus, DetailBody, ListBody, Me, Meta, Overview, Procurement,
-  ProcurementList, Project, QualityBody, ScheduleItem, SyncQueue, SyncStatus, Task, WriteResult,
+  ProcurementList, Project, QualityBody, ScheduleItem, SyncQueue, SyncStatus, Task, WorkbenchBody,
+  WorkbenchLayoutItem, WriteResult,
 } from "./types";
 
 const enc = encodeURIComponent;
@@ -64,6 +65,15 @@ export const fetchProcurementItem = (id: string) =>
   getJSON<DetailBody<Procurement>>("/api/portal/procurement/" + enc(id));
 
 export const fetchQuality = () => getJSON<QualityBody>("/api/portal/quality?page_size=200");
+
+/* ---------- 个人工作台：布局按人存服务端，卡片数据由服务端按布局组装 ---------- */
+export const fetchWorkbench = () => getJSON<WorkbenchBody>("/api/portal/workbench");
+export const saveWorkbench = (cards: WorkbenchLayoutItem[]) =>
+  sendJSON<{ ok: boolean; layout: WorkbenchLayoutItem[]; saved: boolean; updated_at?: number | null }>(
+    "PUT", "/api/portal/workbench", { cards });
+export const resetWorkbench = () =>
+  sendJSON<{ ok: boolean; layout: WorkbenchLayoutItem[]; saved: boolean }>(
+    "DELETE", "/api/portal/workbench");
 
 /* ---------- 推送队列与冲突：全员可看，组长可处理 ---------- */
 export const fetchSyncQueue = () => getJSON<DetailBody<SyncQueue>>("/api/portal/sync-queue");

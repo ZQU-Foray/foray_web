@@ -1440,6 +1440,15 @@ def portal_quality(request: Request):
     return _portal("quality.html", request)
 
 
+@app.get("/workbench", include_in_schema=False)
+def portal_workbench(request: Request):
+    """个人工作台（队员自定义卡片面板）。只有新版前端有这一页：回退旧前端时回到总览。"""
+    if not _use_vue():
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/", status_code=307)
+    return _serve_app_page("portal", request)
+
+
 @app.get("/login", include_in_schema=False)
 def portal_login(request: Request):
     if _use_vue():

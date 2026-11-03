@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 
+from app.portal import migrations
 from tests.test_cache_store import file_hash, make_v1_db
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,13 +45,12 @@ class MigrateScriptTests(unittest.TestCase):
         make_v1_db(self.db)
         code, out = run("--db", self.db, "--backup-dir", self.bk)
         self.assertEqual(code, 0, out)
-        self.assertEqual(version(self.db), "2")
+        self.assertEqual(version(self.db), str(migrations.LATEST))
         c = sqlite3.connect(self.db)
         names = {r[0] for r in c.execute("SELECT name FROM sqlite_master")}
         rows = c.execute("SELECT record_id FROM snapshot").fetchall()
         c.close()
-        self.assertTrue({"outbox", "remote_records", "id_map", "conflicts",
-                         "attendance_sessions"} <= names)
+        self.assertTrue(set(migrations.required_tables()) <= names)
         self.assertEqual(rows, [("recT1",)])
         with open(os.path.join(self.bk, "premigrate.json"), encoding="utf-8") as f:
             man = json.load(f)
@@ -66,7 +66,8 @@ class MigrateScriptTests(unittest.TestCase):
         before = file_hash(self.db)
         code, out = run("--db", self.db, "--dry-run")
         self.assertEqual(code, 0, out)
-        self.assertIn("1 → 2", out)
+        self.assertIn("1 → ", out)
+        self.assertIn("→ %d" % migrations.LATEST, out)
         code, out = run("--db", self.db)
         self.assertEqual(code, 2, out)
         self.assertEqual(file_hash(self.db), before)
@@ -103,7 +104,7 @@ class MigrateScriptTests(unittest.TestCase):
         old.execute("INSERT INTO snapshot VALUES(4, 'tasks', 'recT2', '{}')")   # 旧进程照常写
         old.commit()
         old.close()
-        self.assertEqual(version(self.db), "2")
+        self.assertEqual(version(self.db), str(migrations.LATEST))
 
     def test_refuses_to_overwrite_backup(self):
         make_v1_db(self.db)

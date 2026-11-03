@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""快照库结构迁移：先备份 → 单事务迁移 → 校验（2026-10-21，版本 1 → 2）。
+"""快照库结构迁移：先备份 → 单事务迁移 → 校验（2026-10-21 起，版本 1 → 2 → 3）。
 
 服务启动时不会自动迁移（版本闸门是故障关闭语义），旧库升级只走本脚本。
 部署脚本 deploy.py 会在重启服务前自动调用；手工执行见运维手册 §8.1。
@@ -84,7 +84,7 @@ def verify(db, target):
         integrity = c.execute("PRAGMA integrity_check").fetchone()[0]
     finally:
         c.close()
-    missing = [t for t in migrations.V2_TABLES if t not in names]
+    missing = [t for t in migrations.required_tables(target) if t not in names]
     return str(ver) == str(target) and not missing and integrity == "ok", {
         "schema_version": ver, "missing_tables": missing, "integrity": integrity}
 
@@ -125,7 +125,8 @@ def main():
         return 2
 
     plan = " → ".join(str(v) for v in steps + [target])
-    print("迁移计划：版本 %s（%s），新增表 %s" % (plan, args.db, ", ".join(migrations.V2_TABLES)))
+    print("迁移计划：版本 %s（%s），新增表 %s"
+          % (plan, args.db, ", ".join(migrations.required_tables(target))))
     if args.dry_run:
         print("（--dry-run：未写任何文件）")
         return 0

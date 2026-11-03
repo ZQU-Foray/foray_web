@@ -965,10 +965,11 @@ async def t_attendance_page(browser):
     await page.locator("#att-week-body tr[data-member]").first.wait_for(timeout=8000)
     nav = await page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('.side-nav-item')]
         .map(a => [a.getAttribute('href'), a.querySelector('.nav-no').textContent.trim()]))""")
-    check("导航顺序：02 考勤、03 项目、04 事项、05 物资采购、06 日程、07 数据质量",
+    check("导航顺序：02 考勤、03 项目、04 事项、05 物资采购、06 日程、07 个人工作台、08 数据质量",
           nav.get("/attendance") == "02" and nav.get("/projects") == "03"
           and nav.get("/tasks") == "04" and nav.get("/procurement") == "05"
-          and nav.get("/schedule") == "06" and nav.get("/quality") == "07", str(nav))
+          and nav.get("/schedule") == "06" and nav.get("/workbench") == "07"
+          and nav.get("/quality") == "08", str(nav))
     check("考勤页页头编号 02", "02" in (await page.text_content(".page-no") or ""))
     check("考勤导航项为当前页",
           await page.locator('.side-nav-item[href="/attendance"]').get_attribute("aria-current") == "page")

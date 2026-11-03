@@ -62,10 +62,10 @@ class DbCase(unittest.TestCase):
 
 
 class SchemaTests(DbCase):
-    def test_fresh_db_is_v2_with_cache_tables(self):
+    def test_fresh_db_is_latest_with_cache_tables(self):
         self.assertEqual(S.get_meta("schema_version"), str(M.LATEST))
         names = {r[0] for r in S._db().execute("SELECT name FROM sqlite_master")}
-        for t in M.V2_TABLES:
+        for t in M.required_tables():
             self.assertIn(t, names)
 
     def test_v1_db_rejected_without_writes(self):
@@ -73,14 +73,15 @@ class SchemaTests(DbCase):
         before = file_hash(self.db)
         with self.assertRaises(S.SchemaVersionError) as cm:
             S.get_meta("schema_version")
-        self.assertEqual((cm.exception.found, cm.exception.expected), ("1", "2"))
+        self.assertEqual((cm.exception.found, cm.exception.expected),
+                         ("1", str(M.LATEST)))
         self.assertIn("portal_migrate.py", str(cm.exception))
         self.assertEqual(file_hash(self.db), before)
 
     def test_migrate_v1_keeps_snapshot(self):
         make_v1_db(self.db)
         conn = sqlite3.connect(self.db, isolation_level=None)
-        self.assertEqual(M.migrate(conn), [1])
+        self.assertEqual(M.migrate(conn), [1, 2])
         self.assertEqual(M.migrate(conn), [])             # 再跑一次是空操作
         conn.close()
         snap = S.current()

@@ -16,8 +16,12 @@ export const NAV: Array<{ label: string; items: NavItem[] }> = [
     ],
   },
   {
+    label: "PERSONAL",
+    items: [{ href: "/workbench", no: "07", name: "个人工作台", en: "WORKBENCH" }],
+  },
+  {
     label: "DIAGNOSTICS",
-    items: [{ href: "/quality", no: "07", name: "数据质量", en: "QUALITY" }],
+    items: [{ href: "/quality", no: "08", name: "数据质量", en: "QUALITY" }],
   },
 ];
 

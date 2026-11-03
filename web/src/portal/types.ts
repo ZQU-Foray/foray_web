@@ -328,3 +328,99 @@ export interface AttendancePage {
   members: AttendanceRow[];
   rank: MemberRank[];
 }
+
+/* ---------- 个人工作台（/workbench） ---------- */
+/** 卡片宽度：half = 两列网格里占一格，full = 整屏一行 */
+export type CardWidth = "half" | "full";
+
+/** 服务端下发的卡片目录项（卡片库用，与布局无关） */
+export interface WorkbenchCatalogItem {
+  id: string;
+  title: string;
+  hint: string;
+  width: CardWidth;
+}
+
+/** 布局项：只有卡片 id 与宽度，数据一律按 id 现算 */
+export interface WorkbenchLayoutItem {
+  card_id: string;
+  width: CardWidth;
+}
+
+/** 我的考勤卡的本人行（口径同考勤页） */
+export interface WorkbenchAttendanceRow {
+  id: string;
+  member?: UserRef | null;
+  work_hours?: number | null;
+  week_hours?: number | null;
+  week_ok?: boolean | null;
+  pending?: boolean;
+  leave?: boolean;
+  checked_in?: boolean;
+  checked_in_since?: number | null;
+  on_duty?: boolean;
+}
+
+/** 项目进度卡的一行 */
+export interface WorkbenchProjectRow {
+  id: string;
+  name: string;
+  status?: string | null;
+  owner_group?: string | null;
+  url?: string | null;
+  progress?: { done: number; total: number; percent: number | null };
+}
+
+/** 重要节点卡的一行 */
+export interface WorkbenchMilestoneRow {
+  id: string;
+  name: string;
+  kind?: string | null;
+  target?: TimePoint | null;
+  url?: string | null;
+  countdown_days?: { days: number; hours?: number; minutes?: number };
+}
+
+/** 值日卡的一人 */
+export interface WorkbenchDutyPerson {
+  id: string | null;
+  name: string;
+}
+
+/** 卡片：id/标题/宽度来自目录，data 由服务端按卡片类型填充 */
+export interface WorkbenchCard {
+  id: string;
+  title: string;
+  hint: string;
+  width: CardWidth;
+  error?: string;
+  data?: {
+    items?: unknown[];
+    item?: WorkbenchAttendanceRow | null;
+    total?: number;
+    note?: string;
+    threshold?: number;
+    week?: { start: number; end: number; key: string };
+    configured?: Record<string, boolean>;
+    source?: string | null;
+    date?: string;
+    by_table?: Array<{ table_name: string; count: number }>;
+    top_issues?: Array<{ issue: string; count: number }>;
+    last_success_at?: number | null;
+    last_attempt_at?: number | null;
+    stale?: boolean;
+    last_error?: string | null;
+    snapshot_version?: number | null;
+    counts?: Record<string, number> | null;
+    backlog?: { pending: number; pushing: number; failed: number; open_conflicts: number };
+  };
+}
+
+/** GET /api/portal/workbench：目录 + 本人布局 + 按布局算好的卡片（一次给全） */
+export interface WorkbenchBody extends Envelope {
+  catalog: WorkbenchCatalogItem[];
+  layout: WorkbenchLayoutItem[];
+  saved: boolean;
+  updated_at?: number | null;
+  cards: WorkbenchCard[];
+}
