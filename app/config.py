@@ -75,6 +75,11 @@ AUTH_ACCOUNTS_FILE = Path(os.environ.get(
     "AUTH_ACCOUNTS_FILE", str(AUTH_DIR / "accounts.json")))
 AUTH_AUDIT_FILE = Path(os.environ.get(
     "AUTH_AUDIT_FILE", str(AUTH_DIR / "audit.log")))
+# MCP（2026-11）：agent 接入凭据库。文件只存令牌摘要，明文只在创建时返回一次。
+AUTH_AGENTS_FILE = Path(os.environ.get(
+    "AUTH_AGENTS_FILE", str(AUTH_DIR / "agents.json")))
+# 单令牌每分钟 tools/call 上限（防 agent 打爆只读接口；按令牌独立计数）
+MCP_RATE_PER_MIN = int(os.environ.get("MCP_RATE_PER_MIN", "120"))
 # 本地密码登录失败限频（与应急账号参数同量级，独立可调）
 AUTH_LOCAL_MAX_FAIL = int(os.environ.get("AUTH_LOCAL_MAX_FAIL",
                                          os.environ.get("AUTH_EMERGENCY_MAX_FAIL", "5")))

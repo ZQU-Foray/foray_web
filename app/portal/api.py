@@ -254,6 +254,74 @@ def sync_now(request: Request):
     return {**env, "accepted": accepted, "detail": detail}
 
 
+# ---------------- Agent 令牌（MCP 接入，2026-11） ----------------
+# 维护者才有权签发/撤销：应急会话，或 open_id 在 PORTAL_MAINTAINER_IDS 里。
+# 令牌是给 agent 用的**独立凭据**，只能读、按 scope 收窄、可单独撤销；
+# 明文只在创建响应里出现一次，服务端只留 sha256 摘要。
+
+_MAINTAINER_IDS = frozenset(
+    s.strip() for s in (os.environ.get("PORTAL_MAINTAINER_IDS") or "").split(",") if s.strip())
+
+
+def _require_maintainer(request):
+    """维护者门禁：应急会话或 PORTAL_MAINTAINER_IDS 白名单，其余 403。"""
+    _check_same_origin(request)
+    sess = getattr(request.state, "session", None) or {}
+    extra = sess.get("extra") or {}
+    open_id = str(extra.get("open_id") or "")
+    if sess.get("role") == "emergency" or (open_id and open_id in _MAINTAINER_IDS):
+        return open_id or str(sess.get("user") or "maintainer")
+    raise HTTPException(403, "仅维护者可管理 agent 令牌（应急账号或 PORTAL_MAINTAINER_IDS）")
+
+
+@router.get("/agents")
+def api_agents(request: Request):
+    """列出已签发的 agent 令牌（不含摘要/明文）。"""
+    _require_maintainer(request)
+    from ..auth import agents as _agents
+    from ..mcp import scopes as _scopes
+    return {"data": _agents.list_agents(), "scopes": _scopes.describe(),
+            "default_scopes": _scopes.DEFAULT_SCOPES}
+
+
+@router.post("/agents")
+async def api_agents_create(request: Request):
+    """签发一个 agent 令牌：返回一次性明文 token。"""
+    _require_maintainer(request)
+    from ..auth import agents as _agents
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(422, "请求体必须是对象")
+    name = str(body.get("name") or "").strip()
+    open_id = str(body.get("open_id") or "").strip()
+    raw = body.get("scopes")
+    note = str(body.get("note") or "").strip()
+    try:
+        made = _agents.create(name=name, open_id=open_id, scopes=raw, note=note,
+                              created_by=_who(request))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    _audit("portal_agent_create", agent=made["agent"]["id"], open_id=open_id,
+           scopes=made["agent"]["scopes"], by=_who(request))
+    return {"agent": made["agent"], "token": made["token"],
+            "notice": "令牌只显示这一次，请立即保存到 agent 的配置里"}
+
+
+@router.post("/agents/{agent_id}/revoke")
+def api_agents_revoke(agent_id: str, request: Request):
+    """撤销一个 agent 令牌：即时生效（verify 直接拒绝）。"""
+    _require_maintainer(request)
+    from ..auth import agents as _agents
+    rec = _agents.get(agent_id)
+    if rec is None:
+        raise HTTPException(404, "没有这个 agent")
+    if rec.get("revoked_at"):
+        raise HTTPException(409, "这个 agent 已经撤销了，请刷新列表")
+    _agents.revoke(agent_id, by=_who(request))
+    _audit("portal_agent_revoke", agent=agent_id, by=_who(request))
+    return {"ok": True}
+
+
 # ---------------- 总览 ----------------
 
 @router.get("/overview")
