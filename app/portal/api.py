@@ -260,8 +260,7 @@ def sync_now(request: Request):
 # 令牌是给 agent 用的**独立凭据**，只能读、按 scope 收窄、可单独撤销；
 # 明文只在创建响应里出现一次，服务端只留 sha256 摘要。
 
-_MAINTAINER_IDS = frozenset(
-    s.strip() for s in (os.environ.get("PORTAL_MAINTAINER_IDS") or "").split(",") if s.strip())
+_MAINTAINER_IDS = frozenset(config.PORTAL_MAINTAINER_IDS)
 
 
 def _require_maintainer(request):
