@@ -33,8 +33,12 @@ class _Client:
 
 
 class _Url:
+    """假 URL：same_origin 用 str(url) 取主机，其余代码只读 scheme/netloc。"""
     scheme = "http"
     netloc = "portal.test"
+
+    def __str__(self):
+        return "http://portal.test/oauth/device/confirm"
 
 
 class _Req:
@@ -307,6 +311,25 @@ class ConfirmGateTests(_DeviceCase):
             _Req({"user_code": user_code, "action": "deny"}, token=self.session("ou_a"))))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(agents.list_agents(), [])
+
+    def test_cross_site_origin_is_403(self):
+        self.account("ou_a")
+        user_code, _ = self.start()
+        req = _Req({"user_code": user_code, "action": "approve"},
+                   token=self.session("ou_a"),
+                   headers={"origin": "http://evil.example"})
+        resp = _run(device_auth.device_confirm(req))
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(agents.list_agents(), [])
+
+    def test_same_origin_is_allowed(self):
+        self.account("ou_a")
+        user_code, _ = self.start()
+        req = _Req({"user_code": user_code, "action": "approve"},
+                   token=self.session("ou_a"),
+                   headers={"origin": "http://portal.test"})
+        self.assertEqual(_run(device_auth.device_confirm(req)).status_code, 200)
+        self.assertEqual(len(agents.list_agents()), 1)
 
     def test_confirm_rate_limit_after_failures(self):
         self.account("ou_a")

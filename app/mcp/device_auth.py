@@ -26,7 +26,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .. import config
-from ..auth import agents
+from ..auth import agents, guard
 from . import device_store, scopes
 
 router = APIRouter()
@@ -160,7 +160,7 @@ def _esc(value) -> str:
 
 def _session_of(request: Request) -> dict:
     """公开路径由中间件直接放行，会话要自己从 cookie/Bearer 里取。"""
-    from ..auth import guard, sessions
+    from ..auth import sessions
     tok = guard.extract_token(request)
     rec = sessions.get(tok) if tok else None
     if not rec or sessions.session_state(rec) != "ok":
@@ -290,6 +290,11 @@ async def device_confirm(request: Request):
         except Exception:
             body = {}
     body = body if isinstance(body, dict) else {}
+    if not guard.same_origin(request):
+        # 纵深防御：会话 cookie 已是 SameSite=Lax，跨站表单带不上 cookie；
+        # 这里再按 Origin/Referer 挡一次，避免将来有人调宽 cookie 策略
+        return _page("来源不受信任", "<h1>来源不受信任</h1>"
+                     "<p>请在门户页面里完成批准。</p>", status_code=403)
     user_code = str(body.get("user_code") or "")
     action = str(body.get("action") or "approve").strip().lower()
     sess = _session_of(request)
