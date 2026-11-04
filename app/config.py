@@ -80,6 +80,22 @@ AUTH_AGENTS_FILE = Path(os.environ.get(
     "AUTH_AGENTS_FILE", str(AUTH_DIR / "agents.json")))
 # 单令牌每分钟 tools/call 上限（防 agent 打爆只读接口；按令牌独立计数）
 MCP_RATE_PER_MIN = int(os.environ.get("MCP_RATE_PER_MIN", "120"))
+# 维护者 open_id 白名单（逗号分隔）：可签发/撤销 agent 令牌，并额外获得 sync.read。
+# 生产必须显式配置；留空意味着只有应急会话能管理令牌（而应急默认关闭）。
+PORTAL_MAINTAINER_IDS = [s.strip() for s in
+                         os.environ.get("PORTAL_MAINTAINER_IDS", "").split(",") if s.strip()]
+# 设备码授权（2026-11，RFC 8628 风格）：成员用飞书身份自助换发 agent 令牌。
+# 设备码与用户码在库里都只存 sha256 摘要，明文只在申请响应里出现一次。
+AUTH_DEVICE_FILE = Path(os.environ.get(
+    "AUTH_DEVICE_FILE", str(AUTH_DIR / "device_codes.json")))
+# 设备码有效期（秒）：用户要在这段时间内完成飞书登录与确认
+MCP_DEVICE_TTL_SEC = int(os.environ.get("MCP_DEVICE_TTL_SEC", "600"))
+# 轮询最小间隔（秒）：比这更快返回 slow_down，且不消耗尝试次数
+MCP_DEVICE_INTERVAL_SEC = int(os.environ.get("MCP_DEVICE_INTERVAL_SEC", "5"))
+# 同一成员最多同时持有的未撤销令牌数（自助签发防滥用）
+MCP_DEVICE_MAX_ACTIVE = int(os.environ.get("MCP_DEVICE_MAX_ACTIVE", "5"))
+# 申请设备码限频：每个来源 IP 每分钟最多几次（确认页与申请共用这个桶）
+MCP_DEVICE_RATE_PER_MIN = int(os.environ.get("MCP_DEVICE_RATE_PER_MIN", "10"))
 # 本地密码登录失败限频（与应急账号参数同量级，独立可调）
 AUTH_LOCAL_MAX_FAIL = int(os.environ.get("AUTH_LOCAL_MAX_FAIL",
                                          os.environ.get("AUTH_EMERGENCY_MAX_FAIL", "5")))

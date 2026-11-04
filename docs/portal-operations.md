@@ -342,6 +342,8 @@ cd /opt/portal
 | --- | --- | --- |
 | `config/auth/sessions.json` | 本地用户会话（令牌 sha256 摘要、角色、有效期、复核时间） | 服务重启仍有效；`AUTH_SESSIONS_FILE` 可覆盖 |
 | `config/auth/emergency_users.json` | 应急账号散列 | 见 §1 |
+| `config/auth/agents.json` | agent 令牌（MCP 用，只存 sha256 摘要、scope、创建/撤销时间） | `AUTH_AGENTS_FILE` 可覆盖；明文只回一次 |
+| `config/auth/device_codes.json` | 设备码授权中的待批准请求（只存摘要与状态，10 分钟过期） | `AUTH_DEVICE_FILE` 可覆盖；可整文件删除（只会丢未完成授权） |
 | `config/feishu.json` | 飞书正式配置（app_id/回调/tenant_key 白名单；secret 用 `env:` 引用） | 结构同 `config/feishu.example.json`；`FEISHU_*` 环境变量优先 |
 | `config/devices.json`、`config/device-presets/`、`config/{presets,motor_presets}.json` | 设备注册表与预设（旧调试台沿用） | 升级不覆盖（`deploy.py` 硬校验） |
 | `firmware/` | 已上传固件 | 同上 |
