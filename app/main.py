@@ -18,6 +18,7 @@ from .auth import emergency as auth_emergency
 from .auth import feishu as auth_feishu
 from .auth import guard as auth_guard
 from .auth import sessions as auth_sessions
+from .mcp import device_auth as mcp_device_auth
 from .mcp import server as mcp_server
 from .portal import api as portal_api
 from .portal import pusher as portal_pusher
@@ -953,6 +954,8 @@ app.include_router(portal_api.router)
 # ================= Agent MCP 接入（2026-11） =================
 # 只读、独立 agent 令牌鉴权（不走浏览器会话），见 app/mcp/server.py
 app.include_router(mcp_server.router)
+# 设备码授权（自助签发 agent 令牌）：/oauth/device*，见 app/mcp/device_auth.py
+app.include_router(mcp_device_auth.router)
 
 
 # ================= 认证与访问控制（阶段 3，D1） =================

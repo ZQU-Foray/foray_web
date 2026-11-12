@@ -17,6 +17,8 @@ D2（阶段 9）新增：
 | 身份 API | /api/auth/me、/api/auth/logout | 401 | 放行 | 放行 | 放行（自查身份） |
 | 管理 API | /api/portal/* | 401 | 403 | 放行 | 403 recheck_unavailable |
 | MCP | /mcp | 401（端点内验 agent 令牌） | 同左 | 同左 | 同左 |
+| 设备码授权 | /oauth/device、/authorize、/token | 放行（端点内验设备码） | 放行 | 放行 | 放行 |
+| 设备码批准 | /oauth/device/confirm | 401 | 403 | 放行 | 302 login?recheck=1 |
 | 调试 API | 其余 /api/*（旧+新） | 401 | 放行 | 放行 | 403 recheck_unavailable |
 | 调试 WS | /ws/*（6 条） | 4401 | 放行 | 放行 | 4403；命令前再查 |
 
@@ -49,6 +51,8 @@ ADMIN_API_PREFIX = "/api/portal"
 # 维护者接口（2026-11）：agent 令牌管理。应急会话也要能用，不能走 admin_api 的
 # 「应急仅调试」规则；具体是不是维护者由端点自己判（PORTAL_MAINTAINER_IDS）。
 MAINTAINER_API_PREFIX = "/api/portal/agents"
+# 设备码授权的公开路径（CLI 用，端点内自带限频与设备码校验）
+DEVICE_PUBLIC = {"/oauth/device", "/oauth/device/authorize", "/oauth/device/token"}
 _ASSET_EXT = (".css", ".js", ".png", ".jpg", ".jpeg", ".svg", ".ico",
               ".woff", ".woff2", ".ttf", ".map")
 
@@ -67,6 +71,13 @@ def extract_token(request):
 def classify(path: str) -> str:
     if path in PUBLIC_EXACT:
         return "public"
+    if path in DEVICE_PUBLIC:
+        # 设备码授权：申请与轮询没有浏览器会话（CLI 调用），批准入口自己取会话，
+        # 所以这些路径由端点内部鉴权（见 app/mcp/device_auth.py）。
+        return "public"
+    if path == "/oauth/device/confirm":
+        # 批准接口必须有已开通的成员会话：按管理接口判（开通闸门与角色限制复用同一口径）
+        return "admin_api"
     if path == "/debug" or path.startswith("/debug/"):
         # 调试台：静态子资源公开（离线可用、无敏感信息）；入口页与任何
         # .html/其它路径都要求登录——不能靠"扩展名不在资产表"就落到默认公开。
