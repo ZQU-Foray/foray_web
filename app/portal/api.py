@@ -322,6 +322,86 @@ def api_agents_revoke(agent_id: str, request: Request):
     return {"ok": True}
 
 
+# ---- 成员自助：网页上一键生成自己的令牌（2026-11-13） ----
+# 与上面的维护者端点分开：身份只认会话里的 open_id，scope 只认 scopes.for_open_id，
+# 明文同样只出现一次；上限按人算，免得一人刷出一屏凭据。
+
+_SELF_MAX_ACTIVE = 5
+
+
+def _require_member_identity(request):
+    """本人门禁：会话必须带飞书身份（open_id）。
+
+    本地维护者账号（open_id 形如 local-*）进不了花名册，自助签发对它没有意义，
+    直接给一句能读懂的拒绝，而不是发一个读不到任何数据的令牌。
+    """
+    _check_same_origin(request)
+    sess = getattr(request.state, "session", None) or {}
+    open_id = str((sess.get("extra") or {}).get("open_id") or "")
+    if not open_id:
+        raise HTTPException(403, "当前会话没有飞书身份，不能自助签发令牌；请用飞书登录后再来")
+    return open_id
+
+
+@router.get("/agents/self")
+def api_self_agents(request: Request):
+    """本人令牌列表 + 可签发的 scope（不返回摘要与明文）。"""
+    open_id = _require_member_identity(request)
+    from ..auth import agents as _agents
+    from ..mcp import scopes as _scopes
+    return {"data": _agents.list_agents(open_id),
+            "scopes": [{"scope": s, "description": _scopes.SCOPES[s]}
+                       for s in _scopes.for_open_id(open_id)],
+            "max_active": _SELF_MAX_ACTIVE,
+            "notice": "明文只在生成那一刻显示，服务端只留 sha256 摘要"}
+
+
+@router.post("/agents/self")
+async def api_self_agents_create(request: Request):
+    """签发一个绑定本人的 agent 令牌：返回一次性明文 token。"""
+    open_id = _require_member_identity(request)
+    from ..auth import agents as _agents
+    from ..mcp import scopes as _scopes
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if body is None:
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(422, "请求体必须是对象")
+    active = _agents.count_active(open_id)
+    if active >= _SELF_MAX_ACTIVE:
+        raise HTTPException(422, "你已有 %d 个未撤销的令牌（上限 %d），先撤销不用的再生成"
+                            % (active, _SELF_MAX_ACTIVE))
+    try:
+        made = _agents.create(name=str(body.get("name") or "").strip() or "门户网页生成",
+                              open_id=open_id, scopes=_scopes.for_open_id(open_id),
+                              created_by="self:" + _who(request),
+                              note=str(body.get("note") or "").strip())
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    _audit("portal_agent_create_self", agent=made["agent"]["id"], open_id=open_id,
+           scopes=",".join(made["agent"]["scopes"]), by=_who(request))
+    return {"agent": made["agent"], "token": made["token"],
+            "notice": "令牌只显示这一次，请马上复制到 MCP 客户端配置里；服务端只保存摘要"}
+
+
+@router.post("/agents/self/{agent_id}/revoke")
+def api_self_agents_revoke(agent_id: str, request: Request):
+    """撤销本人的一个令牌；别人的令牌一律按「没有这个令牌」处理。"""
+    open_id = _require_member_identity(request)
+    from ..auth import agents as _agents
+    rec = _agents.get(agent_id)
+    if rec is None or rec.get("open_id") != open_id:
+        raise HTTPException(404, "没有这个令牌")
+    if rec.get("revoked_at"):
+        raise HTTPException(409, "这个令牌已经撤销了，请刷新列表")
+    _agents.revoke(agent_id, by="self:" + _who(request))
+    _audit("portal_agent_revoke_self", agent=agent_id, by=_who(request))
+    return {"ok": True}
+
+
 # ---------------- 总览 ----------------
 
 @router.get("/overview")
@@ -1611,6 +1691,37 @@ def _my_member_record(open_id):
     return None
 
 
+def _mirror_ts(value):
+    """镜像里的毫秒时间戳换成秒；不是数字或为 0 时返回 None。"""
+    return (value / 1000.0) if isinstance(value, (int, float)) and value else None
+
+
+def _member_record_from_mirror(open_id):
+    """从本地镜像里找我的成员记录；没有则返回 None。
+
+    直写分支新建成员行后只写进镜像，快照要等下一轮同步才有这一行。
+    刚签到就签退（或状态查询）时按快照查不到人，曾因此拿 None 取 id 而 500。
+    镜像里的「文本」列就是成员 open_id，按它把刚建的那行找回来。"""
+    try:
+        rows = cache_store.list_remote("members")
+    except Exception:
+        return None
+    for rid, fields in rows:
+        for item in (fields.get("文本") or []):
+            if isinstance(item, dict) and item.get("id") == open_id:
+                ci = _mirror_ts(fields.get("最近签到"))
+                co = _mirror_ts(fields.get("最近签退"))
+                return {"id": rid, "member": {"id": open_id},
+                        "last_check_in": {"ts": ci} if ci else {},
+                        "last_check_out": {"ts": co} if co else {}}
+    return None
+
+
+def _my_member_record_live(open_id):
+    """我的成员记录：先查快照，快照没有再用镜像兜底（直写新建后立即可见）。"""
+    return _my_member_record(open_id) or _member_record_from_mirror(open_id)
+
+
 def _feishu_member_fields(record_id):
     """直读飞书成员记录当前字段（跨零点作废前的复核）；失败返回 None。"""
     try:
@@ -1990,7 +2101,7 @@ def attendance_status(request: Request):
     if rec.get("role") != "member":
         return {"checked_in": False, "work_hours": None, "ip_ok": False}
     open_id = (rec.get("extra") or {}).get("open_id") or ""
-    m = _my_member_record(open_id) if open_id else None
+    m = _my_member_record_live(open_id) if open_id else None
     checked_in, ci_ts, _ = _attendance_state(m, open_id)
     return {"checked_in": checked_in,
             "since": ci_ts if checked_in else None,
@@ -2041,7 +2152,7 @@ def attendance_check_in(request: Request):
     """签到：写最近签到/同步信息；已处于签到状态则拒绝。"""
     import time as _time
     open_id, display = _attendance_gate(request)
-    m = _my_member_record(open_id)
+    m = _my_member_record_live(open_id)
     checked_in, _, _ = _attendance_state(m, open_id)
     if checked_in:
         raise HTTPException(409, "当前已处于签到状态，请先签退")
@@ -2077,7 +2188,7 @@ def attendance_check_out(request: Request):
     """签退：结算本次会话时长累加到有效时长（小时）。"""
     import time as _time
     open_id, display = _attendance_gate(request)
-    m = _my_member_record(open_id)
+    m = _my_member_record_live(open_id)
     if _attendance_cached():
         return _check_out_cached(request, open_id, m)
     checked_in, ci_ts, _ = _attendance_state(m, open_id)
@@ -2085,6 +2196,10 @@ def attendance_check_out(request: Request):
         raise HTTPException(409, "尚无签到记录，无法签退")
     if not checked_in:
         raise HTTPException(409, "当前未处于签到状态")
+    # 签退要按成员记录 id 回写飞书：快照与镜像都查不到人时宁可让用户重试，
+    # 也不能把 None 当记录用（曾经因此抛 TypeError 变成 500）。
+    if not (m or {}).get("id"):
+        raise HTTPException(409, "成员记录尚未同步完成，请稍后重试")
     now = _time.time()
     # 跨零点防线：签到时间早于今日零点 = 零点作废漏网的孤儿会话
     #（守护任务停机/失败期间产生）。按策略作废：清签到、异常 +1、
@@ -2125,7 +2240,12 @@ def attendance_check_out(request: Request):
     try:
         base_hours = float(live.get(attendance.COL_WORK))
     except (TypeError, ValueError):
-        raise HTTPException(503, "飞书实时工时不是数字，请先核对成员记录再签退") from None
+        # 新建的成员行这一列还没有值（公式列空着，或第一次打卡）：
+        # 本次会话就是第一笔，起点按 0 算。值存在却不是数字才算源表异常。
+        if live.get(attendance.COL_WORK) in (None, ""):
+            base_hours = 0.0
+        else:
+            raise HTTPException(503, "飞书实时工时不是数字，请先核对成员记录再签退") from None
     total = round(base_hours + session_h, attendance.HOURS_DIGITS)
     anomalous = session_sec > _ANOMALY_SESSION_SEC
     cols = {"最近签退": int(now * 1000),
@@ -2260,7 +2380,7 @@ def _check_out_cached(request, open_id, m):
             "anomalous": anomalous, "queued": True, "sync_triggered": False}
 
 
-# ---------------- 个人工作台 ----------------
+# ---------------- 工作台 ----------------
 
 def _workbench_open_id(request):
     """当前会话在飞书里的 open_id；本地/应急会话没有这个身份，返回空串。"""
@@ -2274,13 +2394,13 @@ def _require_workbench_owner(request):
     """布局是「每个人自己的」：没有飞书身份的会话不能读写，避免共用一份布局。"""
     open_id = _workbench_open_id(request)
     if not open_id:
-        raise HTTPException(403, "当前会话没有飞书身份，个人工作台布局需要成员身份")
+        raise HTTPException(403, "当前会话没有飞书身份，工作台布局需要成员身份")
     return open_id
 
 
 @router.get("/workbench")
 def workbench_page(request: Request):
-    """个人工作台：卡片目录 + 本人布局 + 按布局算好的卡片数据（一次请求给全）。"""
+    """工作台：卡片目录 + 本人布局 + 按布局算好的卡片数据（一次请求给全）。"""
     open_id = _workbench_open_id(request)
     snap, env = _require_snapshot()
     catalog = workbench.catalog_view()

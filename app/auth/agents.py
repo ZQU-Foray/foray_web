@@ -145,10 +145,18 @@ def get(agent_id: str):
     return _public(rec) if rec else None
 
 
-def list_agents() -> list:
-    out = [_public(rec) for rec in _load()["agents"].values()]
+def list_agents(open_id: str = "") -> list:
+    """列出令牌（不含摘要/明文）；给了 open_id 就只列本人的，供门户自助页面用。"""
+    out = [_public(rec) for rec in _load()["agents"].values()
+           if not open_id or rec.get("open_id") == open_id]
     out.sort(key=lambda r: (r.get("created_at") or 0), reverse=True)
     return out
+
+
+def count_active(open_id: str) -> int:
+    """某人当前未撤销的令牌数：自助签发要设上限，避免一人刷出一屏凭据。"""
+    return sum(1 for rec in _load()["agents"].values()
+               if rec.get("open_id") == open_id and not rec.get("revoked_at"))
 
 
 def revoke(agent_id: str, by: str = "maintainer"):

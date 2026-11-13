@@ -1,7 +1,7 @@
 """快照库结构版本与迁移步骤。
 
 版本 1 → 2：加本地缓存库的五张表；
-版本 2 → 3：加个人工作台布局表 workbench_layouts。
+版本 2 → 3：加工作台布局表 workbench_layouts。
 
 - 新建库：store._db() 直接按最新结构建表（调用 create_v2_objects / create_v3_objects）；
 - 旧库升级：只能由 scripts/portal_migrate.py 执行（先备份、再迁移、再校验），
@@ -86,7 +86,7 @@ V2_STATEMENTS = (
         ON attendance_sessions(open_id) WHERE state = 'open'""",
 )
 
-# 版本 3：个人工作台布局（每人一行；layout 是卡片 id 与宽度的有序 JSON 列表）
+# 版本 3：工作台布局（每人一行；layout 是卡片 id 与宽度的有序 JSON 列表）
 V3_STATEMENTS = (
     """CREATE TABLE IF NOT EXISTS workbench_layouts(
         open_id TEXT PRIMARY KEY,

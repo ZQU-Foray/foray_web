@@ -13,10 +13,12 @@ import Procurement from "./pages/Procurement.vue";
 import ProcurementDetail from "./pages/ProcurementDetail.vue";
 import Quality from "./pages/Quality.vue";
 import Workbench from "./pages/Workbench.vue";
+import McpGuide from "./pages/McpGuide.vue";
 
 export const ROUTES: RouteDef[] = [
-  { path: "/", name: "overview", component: Overview, meta: { title: "总览", crumb: "总览" } },
-  { path: "/workbench", name: "workbench", component: Workbench, meta: { title: "个人工作台", crumb: "个人工作台" } },
+  { path: "/", name: "workbench", component: Workbench, meta: { title: "工作台", crumb: "工作台" } },
+  { path: "/overview", name: "overview", component: Overview, meta: { title: "总览", crumb: "总览" } },
+  { path: "/workbench", name: "workbench-alias", component: Workbench, meta: { title: "工作台", crumb: "工作台" } },
   { path: "/attendance", name: "attendance", component: Attendance, meta: { title: "考勤", crumb: "考勤" } },
   { path: "/procurement", name: "procurement", component: Procurement, meta: { title: "物资采购", crumb: "物资采购" } },
   { path: "/procurement/:id", name: "procurement-detail", component: ProcurementDetail, meta: { title: "采购详情", crumb: "物资采购 · 详情" } },
@@ -27,6 +29,7 @@ export const ROUTES: RouteDef[] = [
   { path: "/schedule", name: "schedule", component: Schedule, meta: { title: "日程", crumb: "日程" } },
   { path: "/schedule/:id", name: "schedule-detail", component: ScheduleDetail, meta: { title: "日程详情", crumb: "日程 · 详情" } },
   { path: "/quality", name: "quality", component: Quality, meta: { title: "数据质量", crumb: "数据质量" } },
+  { path: "/mcp-guide", name: "mcp-guide", component: McpGuide, meta: { title: "MCP 接入", crumb: "MCP 接入" } },
 ];
 
 /* 侧栏导航与页面编号在 nav.ts（页面组件也要取编号，单独成模块以免与路由表互相引用） */

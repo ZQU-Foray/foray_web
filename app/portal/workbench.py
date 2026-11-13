@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""个人工作台：卡片目录、布局存储与卡片数据组装。
+"""工作台：卡片目录、布局存储与卡片数据组装。
 
 分工：
 - **布局**按人保存在快照库 workbench_layouts 表（open_id 主键，schema 版本 3），
@@ -203,7 +203,9 @@ def _my_attendance(snap, open_id):
     row = next((r for r in data["members"]
                 if (r.get("member") or {}).get("id") == open_id), None)
     if not row:
-        return {"items": [], "note": "花名册里找不到本人记录"}
+        # 新成员第一次签到会在花名册里建行，但快照要等下一轮同步才看得到：
+        # 卡片正文给一句话，免得以为考勤对自己不可用（签到按钮不依赖这条注记）。
+        return {"items": [], "note": "花名册里还没有本人记录（首次签到后会随同步补上）"}
     return {"item": row, "week": data["week"], "threshold": data["threshold"],
             "configured": data["configured"]}
 

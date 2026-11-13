@@ -50,14 +50,8 @@ def _base_url(request: Request) -> str:
 
 
 def _scopes_for(open_id: str) -> list:
-    """按角色派生 scope：所有成员得默认只读域，维护者额外得 sync.read。
-
-    第一版不接受调用方自选 scope —— 能自选就等于能自我提权。
-    """
-    out = list(scopes.DEFAULT_SCOPES)
-    if open_id and open_id in config.PORTAL_MAINTAINER_IDS:
-        out.append("sync.read")
-    return out
+    """按角色派生 scope（规则收在 scopes.for_open_id，门户自助签发共用同一份）。"""
+    return scopes.for_open_id(open_id)
 
 
 def _err(error: str, status: int = 400, **extra):

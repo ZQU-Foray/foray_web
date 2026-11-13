@@ -5,7 +5,7 @@ import { getJSON, sendJSON, upload } from "@/shared/http";
 import type {
   AttendancePage, AttendanceStatus, DetailBody, ListBody, Me, Meta, Overview, Procurement,
   ProcurementList, Project, QualityBody, ScheduleItem, SyncQueue, SyncStatus, Task, WorkbenchBody,
-  WorkbenchLayoutItem, WriteResult,
+  WorkbenchLayoutItem, WriteResult, AgentToken,
 } from "./types";
 
 const enc = encodeURIComponent;
@@ -66,7 +66,7 @@ export const fetchProcurementItem = (id: string) =>
 
 export const fetchQuality = () => getJSON<QualityBody>("/api/portal/quality?page_size=200");
 
-/* ---------- 个人工作台：布局按人存服务端，卡片数据由服务端按布局组装 ---------- */
+/* ---------- 工作台：布局按人存服务端，卡片数据由服务端按布局组装 ---------- */
 export const fetchWorkbench = () => getJSON<WorkbenchBody>("/api/portal/workbench");
 export const saveWorkbench = (cards: WorkbenchLayoutItem[]) =>
   sendJSON<{ ok: boolean; layout: WorkbenchLayoutItem[]; saved: boolean; updated_at?: number | null }>(
@@ -83,6 +83,16 @@ export const discardQueueOp = (id: number) =>
   sendJSON<{ count?: number; detail?: string }>("POST", "/api/portal/sync-queue/" + id + "/discard");
 export const ackConflict = (id: number) =>
   sendJSON<{ detail?: string }>("POST", "/api/portal/conflicts/" + id + "/ack");
+
+/* ---------- MCP 令牌（成员自助，只签发绑定本人的） ---------- */
+export const fetchMyAgents = () =>
+  getJSON<{ data: AgentToken[]; scopes: { scope: string; description: string }[]; max_active: number; notice: string }>(
+    "/api/portal/agents/self");
+export const createMyAgent = (name: string) =>
+  sendJSON<{ agent: AgentToken; token: string; notice: string }>(
+    "POST", "/api/portal/agents/self", { name });
+export const revokeMyAgent = (id: string) =>
+  sendJSON<{ ok?: boolean; detail?: string }>("POST", "/api/portal/agents/self/" + enc(id) + "/revoke");
 
 /* ---------- 考勤 ---------- */
 export const fetchAttendance = () => getJSON<AttendanceStatus>("/api/portal/attendance/status");

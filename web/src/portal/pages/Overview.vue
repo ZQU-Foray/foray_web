@@ -142,7 +142,7 @@ const plate = computed(() => "FORAY PORTAL │ " + clockText(new Date(now.value 
 </script>
 
 <template>
-  <PortalPage :no="navNo('/')" en="HOME │ OVERVIEW" title="总览" desc="计数 │ 重要节点 │ 需要关注 │ 近期日程 │ 工时排行" watermark="OVERVIEW" :plate="plate">
+  <PortalPage :no="navNo('/overview')" en="HOME │ OVERVIEW" title="总览" desc="计数 │ 重要节点 │ 需要关注 │ 近期日程 │ 工时排行" watermark="OVERVIEW" :plate="plate">
     <p v-if="data && data.quality_issues" id="ov-quality" class="note">
       ※ {{ data.quality_issues }} 条源数据存在质量异常（未知枚举/失效关联等），已排除出统计。
       <RouterLink to="/quality">查看异常明细 →</RouterLink>

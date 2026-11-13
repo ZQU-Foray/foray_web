@@ -1,13 +1,15 @@
 <script setup lang="ts">
-/* 个人工作台：卡片按「每个人自己」的布局排列，布局存在服务端（workbench_layouts），
+/* 工作台：卡片按「每个人自己」的布局排列，布局存在服务端（workbench_layouts），
  * 换浏览器 / 换设备进来看到的还是同一份；卡片数据仍由服务端按布局现算，口径同各页面。
  * 拖拽用浏览器原生 HTML5 拖放（不引依赖：前端装不上新包），键盘用户另有上移/下移按钮。 */
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import PortalPage from "../components/PortalPage.vue";
 import ConfirmButton from "../components/ConfirmButton.vue";
 import RankList from "../components/RankList.vue";
+import CheckinButton from "../components/CheckinButton.vue";
 import { navNo } from "../nav";
-import { fetchWorkbench, resetWorkbench, saveWorkbench } from "../api";
+import { fetchAttendance, fetchWorkbench, resetWorkbench, saveWorkbench } from "../api";
+import { requestRefresh, store } from "../store";
 import { usePageData } from "../usePageData";
 import { RouterLink } from "@/shared/router";
 import { errorDetail } from "@/shared/http";
@@ -71,10 +73,59 @@ function retrySave(): void {
   void persist(layout.value, "布局已保存");
 }
 
+/* ---- 配置模式：默认只看功能卡片，进配置模式才露出排序、宽度、增删与卡片库 ---- */
+const configMode = ref(false);
+function toggleConfig(): void {
+  configMode.value = !configMode.value;
+  if (!configMode.value) resetDrag();
+}
+
+/* ---- 占满一屏：功能模式下把卡片区撑到视口底部，页面不用滚就能看完一屏 ---- */
+const stageRef = ref<HTMLElement | null>(null);
+let stageObserver: ResizeObserver | null = null;
+
+function fitStage(): void {
+  const el = stageRef.value;
+  if (!el) return;
+  if (configMode.value) {
+    /* 配置模式下要露出卡片库，高度随内容长，不再强行占满 */
+    el.style.minHeight = "";
+    return;
+  }
+  const head = document.querySelector(".page-head") as HTMLElement | null;
+  const body = el.parentElement;
+  const cs = body ? getComputedStyle(body) : null;
+  const pad = cs ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) : 0;
+  const headBottom = head ? head.offsetTop + head.offsetHeight : 0;
+  const avail = window.innerHeight - headBottom - pad;
+  el.style.minHeight = Math.max(320, Math.round(avail)) + "px";
+}
+
+onMounted(() => {
+  void loadAttendState();
+  fitStage();
+  window.addEventListener("resize", fitStage);
+  /* 页头高度会随描述换行变化（窄屏尤其明显），跟着它一起重算 */
+  const head = document.querySelector(".page-head");
+  if (head && typeof ResizeObserver !== "undefined") {
+    stageObserver = new ResizeObserver(() => fitStage());
+    stageObserver.observe(head);
+  }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", fitStage);
+  if (stageObserver) stageObserver.disconnect();
+  stageObserver = null;
+});
+
+watch(configMode, () => fitStage());
+
 /* ---- 拖拽排序 ---- */
 const dragFrom = ref(-1);
 const dragOver = ref(-1);
 function onDragStart(i: number, e: DragEvent): void {
+  if (!configMode.value) return;
   dragFrom.value = i;
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = "move";
@@ -160,6 +211,24 @@ const myAttendance = computed(() => {
            threshold: (c && c.data && c.data.threshold) || 0,
            note: (c && c.data && c.data.note) || "" };
 });
+/* 打卡按钮的「签到 / 签退」以服务端 status 为准：花名册快照还没同步出本人记录时，
+ * 卡片正文可能只有一句「找不到记录」，但签到本身仍可用（服务端会建行）。 */
+const checkedIn = ref(false);
+async function loadAttendState(): Promise<void> {
+  try {
+    const st = await fetchAttendance();
+    checkedIn.value = !!st.checked_in;
+  } catch {
+    /* 读不到状态就先按「未签到」显示，真点下去服务端会给出准话 */
+  }
+}
+/* 轮询或别处写入后，打卡按钮的状态也跟着服务端走一遍 */
+watch(() => store.refreshSeq, loadAttendState);
+/* 打卡返回后让整页数据重拉：签到态与本周工时都是服务端算的，前端不自己改数 */
+function onCheckinDone(): void {
+  requestRefresh();
+  void loadAttendState();
+}
 function tasksOf(id: string): Task[] {
   return items<Task>(cardOf(id));
 }
@@ -224,43 +293,43 @@ function countdown(m: WorkbenchMilestoneRow): string {
 </script>
 
 <template>
-  <PortalPage :no="navNo('/workbench')" en="PERSONAL │ WORKBENCH" title="个人工作台"
-              desc="自己挑卡片 │ 拖拽排序 │ 布局跟着人走" watermark="WORKBENCH">
+  <PortalPage :no="navNo('/')" en="PERSONAL │ WORKBENCH" title="工作台"
+              desc="自己的事项与考勤 │ 需要调整时进配置模式" watermark="WORKBENCH">
     <template #actions>
-      <ConfirmButton label="恢复默认布局" armed-label="再点一次恢复" :busy="resetting" @confirm="reset" />
+      <button v-if="!configMode" type="button" class="btn ghost" id="workbench-config"
+              @click="toggleConfig">配置</button>
+      <template v-else>
+        <ConfirmButton label="恢复默认布局" armed-label="再点一次恢复" :busy="resetting" @confirm="reset" />
+        <button type="button" class="btn" id="workbench-done" @click="toggleConfig">完成</button>
+      </template>
     </template>
 
-    <section class="module enter">
-      <div class="module-head">
-        <span class="module-tag">LAYOUT / 01</span><h2>我的面板</h2>
-        <span class="module-sub">拖动卡片可换位置；键盘用户可用卡片上的「上移 / 下移」</span>
-      </div>
-      <div class="module-body">
-        <p id="workbench-status" class="note" role="status">
-          <template v-if="saving">正在保存布局…</template>
-          <template v-else-if="saveError">布局未保存：{{ saveError }}
-            <button type="button" class="btn ghost xs" @click="retrySave">重试保存</button>
-          </template>
-          <template v-else-if="savedOnce">布局已保存在服务端<template v-if="updatedAt">（{{ fmtDT(updatedAt) }}）</template></template>
-          <template v-else>当前是默认布局，改一次就会记住你的选择</template>
-        </p>
+    <div class="wb-stage" :class="{ 'is-config': configMode }" ref="stageRef">
+      <p id="workbench-status" class="note" role="status" v-if="configMode || saving || saveError">
+        <template v-if="saving">正在保存布局…</template>
+        <template v-else-if="saveError">布局未保存：{{ saveError }}
+          <button type="button" class="btn ghost xs" @click="retrySave">重试保存</button>
+        </template>
+        <template v-else-if="savedOnce">布局已保存在服务端<template v-if="updatedAt">（{{ fmtDT(updatedAt) }}）</template></template>
+        <template v-else>当前是默认布局，改一次就会记住你的选择</template>
+      </p>
 
-        <p v-if="loaded && !cards.length" id="workbench-empty" class="empty">
-          还没有可显示的卡片——先添加几张吧
-        </p>
+      <p v-if="loaded && !cards.length" id="workbench-empty" class="empty">
+        还没有可显示的卡片——点右上角「配置」添加几张吧
+      </p>
 
-        <div id="workbench-grid" class="wb-grid">
-          <article v-for="(it, i) in layout" :key="it.card_id"
-                   class="wb-card" :class="'is-' + it.width"
-                   :data-card="it.card_id" draggable="true"
-                   :aria-label="titleOf(it.card_id)"
-                   :data-drag-over="dragOver === i ? 'true' : undefined"
-                   @dragstart="onDragStart(i, $event)" @dragover="onDragOver(i, $event)"
-                   @drop="onDrop(i)" @dragend="resetDrag">
-            <header class="wb-head">
-              <h3 class="wb-title">{{ titleOf(it.card_id) }}</h3>
-              <div class="wb-tools">
-                <button type="button" class="btn ghost xs" :disabled="i === 0"
+      <div id="workbench-grid" class="wb-grid">
+        <article v-for="(it, i) in layout" :key="it.card_id"
+                 class="wb-card" :class="'is-' + it.width"
+                 :data-card="it.card_id" :draggable="configMode"
+                 :aria-label="titleOf(it.card_id)"
+                 :data-drag-over="dragOver === i ? 'true' : undefined"
+                 @dragstart="onDragStart(i, $event)" @dragover="onDragOver(i, $event)"
+                 @drop="onDrop(i)" @dragend="resetDrag">
+          <header class="wb-head">
+            <h3 class="wb-title">{{ titleOf(it.card_id) }}</h3>
+            <div class="wb-tools" v-if="configMode">
+              <button type="button" class="btn ghost xs" :disabled="i === 0"
                         aria-label="上移" @click="nudge(i, -1)">↑</button>
                 <button type="button" class="btn ghost xs" :disabled="i === layout.length - 1"
                         aria-label="下移" @click="nudge(i, 1)">↓</button>
@@ -287,16 +356,22 @@ function countdown(m: WorkbenchMilestoneRow): string {
                   <span class="wb-unit">h / 本周（达标线 {{ myAttendance.threshold }} h）</span>
                 </p>
                 <p class="wb-line">
-                  <span class="badge" :class="myAttendance.row.checked_in ? 'ok' : 'neutral'">
-                    {{ myAttendance.row.checked_in ? '已签到' : '未签到' }}
+                  <span class="badge" :class="checkedIn ? 'ok' : 'neutral'">
+                    {{ checkedIn ? '已签到' : '未签到' }}
                   </span>
-                  <span v-if="myAttendance.row.checked_in && myAttendance.row.checked_in_since" class="row-meta">
+                  <span v-if="checkedIn && myAttendance.row.checked_in_since" class="row-meta">
                     自 {{ fmtDT(myAttendance.row.checked_in_since) }}
                   </span>
                   <span v-if="myAttendance.row.leave" class="badge warn">本周请假</span>
                   <span v-if="myAttendance.row.pending" class="badge neutral">待结算</span>
                 </p>
               </template>
+              <!-- 签到 / 签退入口：工作台就是默认首页，不用为了打卡再跑考勤页；
+                   本行不依赖上面的花名册行，新成员第一次签到也能点 -->
+              <p class="wb-line wb-attend-row">
+                <CheckinButton :checked-in="checkedIn" btn-id="workbench-attend-btn" @done="onCheckinDone" />
+                <span class="row-meta">网段校验、跨零点作废等规则在服务端</span>
+              </p>
             </template>
 
             <!-- 我的事项 / 临期与逾期 -->
@@ -394,36 +469,47 @@ function countdown(m: WorkbenchMilestoneRow): string {
               </p>
             </template>
 
-            <p v-else class="empty">这张卡片暂无展示内容</p>
-          </article>
-        </div>
+          <p v-else class="empty">这张卡片暂无展示内容</p>
+        </article>
       </div>
-    </section>
 
-    <section class="module enter">
-      <div class="module-head">
-        <span class="module-tag">LIBRARY / 02</span><h2>卡片库</h2>
-        <span class="module-sub">点「添加」放到底部，再拖到想要的位置</span>
-      </div>
-      <div class="module-body">
-        <p v-if="!unused.length" class="empty">所有卡片都已经在你的面板上了</p>
-        <div v-else id="workbench-library" class="wb-lib">
-          <div v-for="c in unused" :key="c.id" class="wb-lib-item" :data-cat="c.id">
-            <div class="wb-lib-main">
-              <span class="row-name">{{ c.title }}</span>
-              <span class="row-meta">{{ c.hint }}</span>
+      <section v-if="configMode" class="module enter wb-lib-wrap">
+        <div class="module-head">
+          <span class="module-tag">LIBRARY / 02</span><h2>卡片库</h2>
+          <span class="module-sub">点「添加」放到底部，再拖到想要的位置</span>
+        </div>
+        <div class="module-body">
+          <p v-if="!unused.length" class="empty">所有卡片都已经在你的面板上了</p>
+          <div v-else id="workbench-library" class="wb-lib">
+            <div v-for="c in unused" :key="c.id" class="wb-lib-item" :data-cat="c.id">
+              <div class="wb-lib-main">
+                <span class="row-name">{{ c.title }}</span>
+                <span class="row-meta">{{ c.hint }}</span>
+              </div>
+              <button type="button" class="btn ghost xs" :disabled="saving" @click="addCard(c.id)">添加</button>
             </div>
-            <button type="button" class="btn ghost xs" :disabled="saving" @click="addCard(c.id)">添加</button>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </PortalPage>
 </template>
 
 <style scoped>
-.wb-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.wb-card { border: 1px solid var(--c-line, #ddd); border-radius: 8px; padding: 10px 12px; background: #fff; }
+/* 功能模式占满整页：卡片区随可用高度拉伸；配置模式下多出的工具栏与卡片库自然往下长 */
+/* 高度由 fitStage() 按视口与页头现算（含兜底值），保证功能模式一屏装满 */
+.wb-stage { display: flex; flex-direction: column; gap: 12px; min-height: 320px; }
+.wb-grid {
+  flex: 1 1 auto; display: grid; gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(140px, 1fr);
+  align-content: stretch;
+}
+.wb-card {
+  border: 1px solid var(--c-line, #ddd); border-radius: 8px; padding: 10px 12px;
+  background: #fff; min-width: 0; overflow: auto;
+}
+.wb-stage.is-config .wb-card { cursor: grab; }
 .wb-card.is-full { grid-column: 1 / -1; }
 .wb-card[data-drag-over="true"] { outline: 2px dashed var(--c-ink, #222); }
 .wb-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
@@ -432,16 +518,20 @@ function countdown(m: WorkbenchMilestoneRow): string {
 .wb-metric { margin: 4px 0; font-size: 22px; }
 .wb-unit { font-size: 12px; margin-left: 6px; }
 .wb-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.wb-attend-row { margin-top: auto; }
+.wb-attend-row .btn { flex: none; }
 .wb-list { list-style: none; margin: 0; padding: 0; }
 .wb-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 3px 0; border-top: 1px dashed var(--c-line, #eee); }
 .wb-row:first-child { border-top: none; }
 .wb-err { color: var(--c-danger-2, #a8211a); margin: 4px 0; }
+.wb-lib-wrap { margin-top: 0; }
 .wb-lib { display: grid; gap: 8px; }
 .wb-lib-item { display: flex; align-items: center; justify-content: space-between; gap: 10px;
   border: 1px solid var(--c-line, #ddd); border-radius: 6px; padding: 6px 10px; }
 .wb-lib-main { display: flex; flex-direction: column; gap: 2px; }
 @media (max-width: 720px) {
-  .wb-grid { grid-template-columns: minmax(0, 1fr); }
+  .wb-stage { min-height: 0; }
+  .wb-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(120px, auto); }
   .wb-card.is-half { grid-column: 1 / -1; }
 }
 </style>

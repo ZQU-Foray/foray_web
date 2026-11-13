@@ -7,8 +7,12 @@
 - 鉴权：`Authorization: Bearer agent_xxxxx`（独立 agent 令牌，不是浏览器会话）
 - 写入、烧录、部署、打卡等一律不开放；agent 只能看，不能改。
 
-令牌有两种拿法：维护者代发（§2），或成员自己用飞书身份换（§3，推荐给个人客户端）。
-两者签出的是同一种令牌，scope 与撤销口径完全一致。
+令牌有三种拿法：登录门户在网页上点一下（§3，最省事）、命令行设备码（§4）、
+维护者代发（§2）。三者签出的是同一种令牌，scope 与撤销口径完全一致。
+
+门户里还有一页图形版说明：登录后打开 `/mcp-guide`（侧栏「09 MCP 接入」），
+把端点、三种拿令牌方式、客户端配置、scope/工具表与常见错误码摆在一起，照着点就能接上；
+成员可以在页面上直接生成并撤销自己的令牌，明文只在生成那一刻显示，刷新后不再出现。
 
 ## 1. 为什么是独立令牌
 
@@ -54,7 +58,30 @@ curl -sS -X POST https://<门户域名>/api/portal/agents/ag_xxxx/revoke -b 'dsh
 撤销后下一次请求即 401，不需要重启服务。所有签发与撤销都进审计日志
 （`agent_create` / `agent_revoke` / `portal_agent_create` / `portal_agent_revoke`）。
 
-## 3. 成员自助签发（设备码授权）
+## 3. 网页一键生成（成员，推荐）
+
+登录门户后打开 `/mcp-guide`，在「02 拿令牌」里填个名字点「生成我的令牌」：
+服务端按会话里的飞书身份签发一个绑定本人的令牌，**明文只在这一刻显示**，
+复制走之后服务端只剩 sha256 摘要，刷新页面就再也看不到（页面也不写 localStorage）。
+
+同一页面的「我的令牌」表格列出本人所有令牌（名称、scope 个数、创建时间、最后使用、
+状态），每条都能单独撤销；撤销后下一次 MCP 请求立刻 401，不用重启服务。
+
+| 端点 | 作用 | 身份 |
+| --- | --- | --- |
+| `GET /api/portal/agents/self` | 本人令牌列表 + 可签发 scope | 会话里的 `open_id` |
+| `POST /api/portal/agents/self` | 签发（`{"name": "..."}` 可选），返回一次性明文 | 同上 |
+| `POST /api/portal/agents/self/{id}/revoke` | 撤销本人的一条令牌 | 同上 |
+
+几条硬规则：
+
+1. 绑定的 `open_id` 只取会话本人，请求体里写别人也不认；
+2. scope 不可自选，固定为「默认签发=是」的七项（维护者多一个 `sync.read`）；
+3. 每人最多 5 个未撤销令牌，超了先撤销旧的；
+4. 别人的令牌按「没有这个令牌」处理（404），不泄露存在性；
+5. 本地维护者账号（`local-*`）没有花名册身份，自助签发对它返回 403。
+
+## 4. 成员自助签发（设备码授权，命令行）
 
 成员不必找维护者：命令行申请设备码 → 浏览器用飞书登录并确认 → 命令行换到令牌。
 飞书只用来证明「你是谁」，换出来的仍是本站 agent 令牌（可撤销、按 scope 收窄、
@@ -91,7 +118,7 @@ python scripts/mcp_login.py --base-url https://<门户域名>
 2. 会话里的 `tenant_key` 必须在 `FEISHU_ALLOWED_TENANT_KEYS` 里（跨组织 → 403）；
 3. 每个成员最多 `MCP_DEVICE_MAX_ACTIVE`（默认 5）个未撤销令牌，超了 → 409，
    先去门户撤销旧的；
-4. scope 不由调用方指定：一律 `DEFAULT_SCOPES`（§4 里「默认签发=是」的那七项），
+4. scope 不由调用方指定：一律 `DEFAULT_SCOPES`（§5 里「默认签发=是」的那七项），
    维护者额外多一个 `sync.read`。
 
 相关配置（`/opt/portal/.env`）：
@@ -108,7 +135,7 @@ python scripts/mcp_login.py --base-url https://<门户域名>
 审计：`agent_device_start`（申请）、`agent_device_grant`（领取成功）、
 `agent_create`（批准时建令牌）三条。确认页对同一 IP 连续十条错码会冷却 10 分钟。
 
-## 4. scope 表
+## 5. scope 表
 
 scope 按数据域划分，令牌持有哪些就能看见哪些工具（未授权工具在 `tools/list`
 里根本不出现，直接调用返回 `-32001`）。
@@ -127,7 +154,7 @@ scope 按数据域划分，令牌持有哪些就能看见哪些工具（未授�
 `attendance.read` 只返回令牌绑定成员自己的考勤，不提供他人明细；`sync.read`
 属运维视角，默认不给。
 
-## 5. 工具表
+## 6. 工具表
 
 | 工具 | scope | 主要参数 |
 | --- | --- | --- |
@@ -147,7 +174,7 @@ scope 按数据域划分，令牌持有哪些就能看见哪些工具（未授�
 分页参数统一 `limit`（上限 200）/`offset`；工具返回体是 JSON 文本，外层带
 `snapshot_version` / `last_success_at` / `stale`，方便 agent 判断数据新旧。
 
-## 6. 客户端配置
+## 7. 客户端配置
 
 Claude Desktop / Cursor 一类只支持 stdio 的客户端，用 `mcp-remote` 中转：
 
@@ -165,7 +192,7 @@ Claude Desktop / Cursor 一类只支持 stdio 的客户端，用 `mcp-remote` �
 
 支持 streamable HTTP 的客户端直接配 URL + `Authorization` 头即可。
 
-## 7. 协议细节
+## 8. 协议细节
 
 - `initialize` 返回 `protocolVersion=2025-06-18`、`capabilities.tools`、
   `serverInfo.name=foray-portal-mcp`；`notifications/initialized` 返回 202 无体。
@@ -177,7 +204,7 @@ Claude Desktop / Cursor 一类只支持 stdio 的客户端，用 `mcp-remote` �
 - 浏览器来源（带 `Origin` 头）一律 403：MCP 客户端不是浏览器，避免 DNS
   rebinding 借道。
 
-## 8. 排障
+## 9. 排障
 
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
