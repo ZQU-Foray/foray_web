@@ -8,10 +8,15 @@
 # 说明：
 # - config/、firmware/、tls/ 用 bind mount，升级重建容器不会丢配置；
 # - 单实例部署，不要在这里扩到多副本（会话与限频状态在进程内）；
-# - 硬件功能（烧录/串口/网段扫描）在容器里默认不可用，见 docs/portal-nas-deploy.md §7。
+# - 硬件功能（烧录/串口/网段扫描）在容器里默认不可用，见 docs/portal-nas-deploy.md §7；
+# - 基础镜像默认 python:3.10-slim，镜像源不通时在 .env 里设 PYTHON_IMAGE 覆盖即可。
 services:
   portal:
-    build: .
+    build:
+      context: .
+      args:
+        # NAS 的加速器对 docker.io 返回 401 时，把它指向能拉到的等价镜像地址
+        PYTHON_IMAGE: "${PYTHON_IMAGE:-python:3.10-slim}"
     image: foray-portal:dev
     container_name: foray-portal
     restart: unless-stopped

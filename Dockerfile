@@ -5,8 +5,11 @@
 # 2) 只装运行期依赖 requirements.txt，不含 tests/、backups/、参考/；
 # 3) config/、firmware/、tls/、.env 一律由宿主机挂载，镜像里只留空目录占位，
 #    避免升级时覆盖线上飞书配置、设备注册表与快照库；
-# 4) uvicorn 固定单 worker：会话、镜像缓存、限频计数、考勤内存状态都在进程内。
-FROM python:3.10-slim
+# 4) uvicorn 固定单 worker：会话、镜像缓存、限频计数、考勤内存状态都在进程内；
+# 5) 基础镜像用 build arg 参数化：某些 NAS 的镜像加速器对 docker.io 返回 401 时，
+#    可以用 PYTHON_IMAGE 指到能拉到的等价地址，而不必改动这个文件。
+ARG PYTHON_IMAGE=python:3.10-slim
+FROM ${PYTHON_IMAGE}
 
 # PYTHONUNBUFFERED 让日志实时进 docker logs；PIP_NO_CACHE_DIR 控制镜像体积
 ENV PYTHONUNBUFFERED=1 \

@@ -196,3 +196,51 @@ tar czf /volume1/docker/foray/backup-$(date +%F-%H%M).tgz config firmware
 | 登录一律被拒 | `FEISHU_ALLOWED_TENANT_KEYS` 为空 |
 | 健康检查一直 unhealthy | 容器内 `/login` 不是 200：看 `docker compose logs`，多半是 `config/` 权限不可写（首启要写 `presets.json`） |
 | 页面样式/脚本 404 | 镜像里 `static/app` 缺产物：确认构建前仓库里有 `static/app/assets/portal-*.js`（前端走 `npm run build` 后入库） |
+| 构建卡在 `load metadata for docker.io/library/python:3.10-slim`，报 `401 Unauthorized` | NAS 上配置的镜像加速器（如 `docker.fnnas.com`）对 docker.io 鉴权失败，见 §9 |
+
+## 9. 镜像拉不下来（registry 401）
+
+现象：
+
+```
+=> ERROR [internal] load metadata for docker.io/library/python:3.10-slim
+failed to solve: ... unexpected status from HEAD request to https://<加速器>/v2/library/python/manifests/3.10-slim?ns=docker.io: 401 Unauthorized
+```
+
+这不是 Dockerfile 的问题，而是构建机上配置的镜像加速器拒绝了对 docker.io 的匿名拉取。两条路，任选其一。
+
+**路线 A：修 NAS 的镜像源（推荐，一次修好所有镜像）**
+
+1. 先确认是本机 Docker 的问题而不是项目的问题：
+
+   ```bash
+   docker pull python:3.10-slim      # 同样 401 → 镜像源问题
+   ```
+
+2. 在 NAS 上改加速器配置（群晖：Container Manager → 注册表 → 设置；飞牛 fnOS：Docker → 镜像加速；通用：`/etc/docker/daemon.json`）：
+
+   ```json
+   {
+     "registry-mirrors": ["https://dockerproxy.net", "https://hub.rat.dev"]
+   }
+   ```
+
+   把返回 401 的地址删掉；加速器全部不可用且 NAS 能直连外网时，干脆清空 `registry-mirrors`。
+3. 重启 Docker 服务后复测 `docker pull python:3.10-slim`。第三方加速器只作过渡，能直连就别长期依赖；对安全敏感时可以拉取后按 digest 固定。
+
+**路线 B：只改本项目的构建参数（不动 NAS 全局配置）**
+
+`Dockerfile` 的基础镜像已经参数化，`.env` 里加一行指向某个拉得到的等价地址即可：
+
+```ini
+# 例：阿里云个人加速器 / 其它可用源，注意必须包含 library/python
+PYTHON_IMAGE=docker.cn-hangzhou.aliyuncs.com/library/python:3.10-slim
+```
+
+```bash
+docker compose build --no-cache portal   # 或 docker compose up -d --build
+```
+
+镜像名必须保留 `python:3.10` 这个 tag（3.11/3.12 也能跑，但生产是 3.10.12，尽量对齐）。
+只换拉取来源、不换版本，因为 `requirements.txt` 里的 `pyudev`、`pyserial` 等在本机是按 3.10 验证的。
+

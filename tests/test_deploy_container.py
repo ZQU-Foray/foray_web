@@ -51,6 +51,18 @@ class ContainerReleaseTest(unittest.TestCase):
         # 样例里不出现真实密钥
         self.assertNotIn("cli_", text.replace("cli_xxxxxxxxxxxxxxxx", ""))
 
+    def test_base_image_is_configurable(self):
+        """NAS 的镜像加速器可能对 docker.io 返 401：基础镜像必须能用参数换掉，而不是改文件。"""
+        dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("ARG PYTHON_IMAGE=python:3.10-slim", dockerfile)
+        self.assertIn("FROM ${PYTHON_IMAGE}", dockerfile)
+        compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+        self.assertIn("PYTHON_IMAGE", compose)
+        env_sample = (ROOT / "deploy" / "nas.env.example").read_text(encoding="utf-8")
+        self.assertIn("PYTHON_IMAGE", env_sample)
+        doc = (ROOT / "docs" / "portal-nas-deploy.md").read_text(encoding="utf-8")
+        self.assertIn("registry-mirrors", doc)
+
     def test_nas_deploy_doc_covers_feishu_and_limits(self):
         text = (ROOT / "docs" / "portal-nas-deploy.md").read_text(encoding="utf-8")
         for needle in ("重定向 URL", "tenant_key", "/onboarding", "SCAN_SUBNET",
