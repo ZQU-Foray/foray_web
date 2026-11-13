@@ -19,7 +19,7 @@ harness.ensure_browser_env()
 
 PASS, FAIL = [], []
 
-POLL_URL = "/?poll_ms=1200"      # 测试加速轮询（1.2s）
+POLL_URL = "/overview?poll_ms=1200"   # 总览页（2026-11 起首页是工作台）；测试加速轮询 1.2s
 
 
 def check(name, cond, detail=""):
@@ -904,7 +904,7 @@ async def t_v12_links_strip_logo(browser):
     """阶段 10 v1.2：内容链接不用蓝色；状态条只留同步时间；登录页用上传队标（favicon 不变）。"""
     print("== v1.2：链接去蓝 / 状态条精简 / 队标 ==")
     # 1) 内容区链接为墨色（灰度），不是浏览器默认蓝
-    page = await new_page(browser, "/?poll_ms=2000")
+    page = await new_page(browser, "/overview?poll_ms=2000")
     await page.wait_for_timeout(1200)
     colors = await page.evaluate("""() => {
         const out = [];
@@ -965,11 +965,12 @@ async def t_attendance_page(browser):
     await page.locator("#att-week-body tr[data-member]").first.wait_for(timeout=8000)
     nav = await page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('.side-nav-item')]
         .map(a => [a.getAttribute('href'), a.querySelector('.nav-no').textContent.trim()]))""")
-    check("导航顺序：02 考勤、03 项目、04 事项、05 物资采购、06 日程、07 个人工作台、08 数据质量",
-          nav.get("/attendance") == "02" and nav.get("/projects") == "03"
+    check("导航顺序：01 总览、02 考勤、03 项目、04 事项、05 物资采购、06 日程、07 工作台、08 数据质量、09 MCP 接入",
+          nav.get("/overview") == "01" and nav.get("/attendance") == "02"
+          and nav.get("/projects") == "03"
           and nav.get("/tasks") == "04" and nav.get("/procurement") == "05"
-          and nav.get("/schedule") == "06" and nav.get("/workbench") == "07"
-          and nav.get("/quality") == "08", str(nav))
+          and nav.get("/schedule") == "06" and nav.get("/") == "07"
+          and nav.get("/quality") == "08" and nav.get("/mcp-guide") == "09", str(nav))
     check("考勤页页头编号 02", "02" in (await page.text_content(".page-no") or ""))
     check("考勤导航项为当前页",
           await page.locator('.side-nav-item[href="/attendance"]').get_attribute("aria-current") == "page")
@@ -1058,8 +1059,8 @@ async def t_quality_page(browser):
 
 async def t_layout_desktop(browser):
     print("== 桌面 1400 排版审计（门户全页，恢复阶段 2 覆盖） ==")
-    for path in ("/?poll_ms=3000", "/attendance", "/projects", "/tasks", "/schedule", "/quality",
-                 "/login", "/projects/rP1", "/tasks/rT1"):
+    for path in ("/", "/overview?poll_ms=3000", "/mcp-guide", "/attendance", "/projects", "/tasks",
+                 "/schedule", "/quality", "/login", "/projects/rP1", "/tasks/rT1"):
         page = await new_page(browser, path)
         await page.wait_for_timeout(1200)
         probs = await page.evaluate("""() => {
@@ -1070,11 +1071,48 @@ async def t_layout_desktop(browser):
         await page.close()
 
 
+async def t_home_and_mcp_guide(browser):
+    """2026-11：默认首页改为工作台；新增 MCP 接入引导页。"""
+    print("== 默认首页是工作台 + MCP 接入引导页 ==")
+    page = await new_page(browser, "/")
+    await page.wait_for_timeout(1200)
+    check("首页标题为「工作台」", (await page.text_content(".page-title") or "").strip() == "工作台",
+          (await page.text_content(".page-title") or "")[:20])
+    check("侧栏「工作台」为当前页",
+          await page.locator('.side-nav-item[href="/"]').get_attribute("aria-current") == "page")
+    check("工作台面板渲染（我的面板）", await page.query_selector("#workbench-status") is not None)
+    await page.close()
+
+    page = await new_page(browser, "/overview")
+    await page.wait_for_timeout(1000)
+    check("总览仍在 /overview", (await page.text_content(".page-title") or "").strip() == "总览",
+          (await page.text_content(".page-title") or "")[:20])
+    await page.close()
+
+    page = await new_page(browser, "/workbench")
+    await page.wait_for_timeout(900)
+    check("/workbench 仍可打开（标题同为工作台）",
+          (await page.text_content(".page-title") or "").strip() == "工作台")
+    await page.close()
+
+    page = await new_page(browser, "/mcp-guide")
+    await page.wait_for_timeout(900)
+    check("MCP 接入页标题", (await page.text_content(".page-title") or "").strip() == "MCP 接入",
+          (await page.text_content(".page-title") or "")[:20])
+    body = ((await page.text_content(".page-head") or "")
+            + (await page.text_content(".page-body") or ""))
+    check("MCP 接入页给出端点与凭据用法",
+          "/mcp" in body and "Bearer" in body, body[:60])
+    for word in ("设备码授权", "mcp-remote", "portal_list_tasks", "-32001"):
+        check(f"MCP 接入页含「{word}」", word in body)
+    await page.close()
+
+
 SUITES = [t_ui_kit_and_simplify, t_v11_login_and_compact, t_cold_start, t_data_render, t_countdown_local, t_poll_refresh,
           t_detail_and_gantt, t_stale_and_empty, t_filled_gaps, t_toasts, t_proc_new_season,
           t_login_no_loop, t_auth_pages, t_schedule_views, t_project_filters,
           t_attendance_page, t_quality_page, t_keyboard_contrast, t_layout_480, t_layout_desktop,
-          t_v12_links_strip_logo, t_sidebar_collapse ]   # 放在有数据之后（要渲染内容链接）
+          t_home_and_mcp_guide, t_v12_links_strip_logo, t_sidebar_collapse ]   # 放在有数据之后（要渲染内容链接）
 
 
 async def run_all():

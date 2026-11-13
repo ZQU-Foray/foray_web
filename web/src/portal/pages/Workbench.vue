@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/* 个人工作台：卡片按「每个人自己」的布局排列，布局存在服务端（workbench_layouts），
+/* 工作台：卡片按「每个人自己」的布局排列，布局存在服务端（workbench_layouts），
  * 换浏览器 / 换设备进来看到的还是同一份；卡片数据仍由服务端按布局现算，口径同各页面。
  * 拖拽用浏览器原生 HTML5 拖放（不引依赖：前端装不上新包），键盘用户另有上移/下移按钮。 */
 import { computed, ref, watch } from "vue";
@@ -224,7 +224,7 @@ function countdown(m: WorkbenchMilestoneRow): string {
 </script>
 
 <template>
-  <PortalPage :no="navNo('/workbench')" en="PERSONAL │ WORKBENCH" title="个人工作台"
+  <PortalPage :no="navNo('/')" en="PERSONAL │ WORKBENCH" title="工作台"
               desc="自己挑卡片 │ 拖拽排序 │ 布局跟着人走" watermark="WORKBENCH">
     <template #actions>
       <ConfirmButton label="恢复默认布局" armed-label="再点一次恢复" :busy="resetting" @confirm="reset" />

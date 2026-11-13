@@ -424,7 +424,7 @@ python wsctl.py --device <设备ID> status|serial ...|flash ...|presets ...   # 
 - 数据文件：`config/portal_snapshot.db`（SQLite，`schema_version=3`；env `PORTAL_DB` 可覆盖；**不在静态资源目录**）。
   版本 2（2026-10-21）新增本地缓存库的五张表：飞书镜像 `remote_records`、待推送队列 `outbox`、
   `id_map`、`conflicts`、`attendance_sessions`，设计见 `docs/portal-cache-design.md`。
-  版本 3（2026-11-03）只新增一张 `workbench_layouts`（个人工作台的按人布局），设计见
+  版本 3（2026-11-03）只新增一张 `workbench_layouts`（工作台的按人布局），设计见
   `docs/portal-workbench.md`；升级仍走 `scripts/portal_migrate.py`（`deploy.py` 重启前自动迁移，
   备份在 `/opt/portal-backups/<时间戳>/premigrate/`）。
   每轮同步内容有变时刷新镜像，日志为「飞书镜像已刷新」；刷新失败即整轮同步失败（保留上一版快照），

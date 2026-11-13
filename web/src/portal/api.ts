@@ -66,7 +66,7 @@ export const fetchProcurementItem = (id: string) =>
 
 export const fetchQuality = () => getJSON<QualityBody>("/api/portal/quality?page_size=200");
 
-/* ---------- 个人工作台：布局按人存服务端，卡片数据由服务端按布局组装 ---------- */
+/* ---------- 工作台：布局按人存服务端，卡片数据由服务端按布局组装 ---------- */
 export const fetchWorkbench = () => getJSON<WorkbenchBody>("/api/portal/workbench");
 export const saveWorkbench = (cards: WorkbenchLayoutItem[]) =>
   sendJSON<{ ok: boolean; layout: WorkbenchLayoutItem[]; saved: boolean; updated_at?: number | null }>(

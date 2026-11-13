@@ -329,7 +329,7 @@ export interface AttendancePage {
   rank: MemberRank[];
 }
 
-/* ---------- 个人工作台（/workbench） ---------- */
+/* ---------- 工作台（/workbench） ---------- */
 /** 卡片宽度：half = 两列网格里占一格，full = 整屏一行 */
 export type CardWidth = "half" | "full";
 

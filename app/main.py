@@ -1409,7 +1409,23 @@ def _serve_portal_page(filename: str, request: Request) -> HTMLResponse:
 
 @app.get("/", include_in_schema=False)
 def portal_overview(request: Request):
+    """门户首页：新版前端默认落在工作台（路由在 web/src/portal/routes.ts）。"""
     return _portal("overview.html", request)
+
+
+@app.get("/overview", include_in_schema=False)
+def portal_overview_page(request: Request):
+    """总览页（2026-11 起首页改为工作台，总览单独留在 /overview）。"""
+    return _portal("overview.html", request)
+
+
+@app.get("/mcp-guide", include_in_schema=False)
+def portal_mcp_guide(request: Request):
+    """MCP 接入引导页：端点、设备码授权、客户端配置与排障（文案对齐 docs/portal-mcp.md）。"""
+    if not _use_vue():
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/quality", status_code=307)
+    return _serve_app_page("portal", request)
 
 
 @app.get("/projects", include_in_schema=False)
@@ -1450,7 +1466,7 @@ def portal_quality(request: Request):
 
 @app.get("/workbench", include_in_schema=False)
 def portal_workbench(request: Request):
-    """个人工作台（队员自定义卡片面板）。只有新版前端有这一页：回退旧前端时回到总览。"""
+    """工作台（队员自定义卡片面板）。只有新版前端有这一页：回退旧前端时回到总览。"""
     if not _use_vue():
         from fastapi.responses import RedirectResponse
         return RedirectResponse("/", status_code=307)

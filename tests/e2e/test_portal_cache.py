@@ -338,7 +338,8 @@ def run():
 
     print("-- 考勤（本地明细）--")
     code, r = api("/api/portal/attendance/check-in", {}, auth="member")
-    check("签到立即返回（queued）", code == 200 and r.get("queued") is True, f"{code} {r}")
+    check("签到立即返回（直写飞书，不等同步）",
+          code == 200 and r.get("ok") is True and bool(r.get("record_id")), f"{code} {r}")
     _, st = api("/api/portal/attendance/status", auth="member")
     check("签到后状态立即为签到中（不等同步）", st.get("checked_in") is True, str(st))
     code, r = api("/api/portal/attendance/check-in", {}, auth="member")
@@ -350,7 +351,7 @@ def run():
           len(mine) == 1 and isinstance(mine[0]["fields"].get("最近签到"), int), str(mine))
     time.sleep(1.3)
     code, r = api("/api/portal/attendance/check-out", {}, auth="member")
-    check("签退立即返回（queued）", code == 200 and r.get("queued") is True, f"{code} {r}")
+    check("签退立即返回（直写飞书）", code == 200 and r.get("ok") is True, f"{code} {r}")
     _, st = api("/api/portal/attendance/status", auth="member")
     check("签退后状态立即为未签到", st.get("checked_in") is False, str(st))
     wait_queue()

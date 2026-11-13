@@ -42,7 +42,7 @@ PUBLIC_EXACT = {"/login", "/auth/feishu/start", "/auth/feishu/callback",
                 # 应急端点保持可达但自身返回 404（停用提示），便于旧书签得到明确答复
                 "/api/auth/emergency/login"}
 PORTAL_PAGES = {"/", "/projects", "/tasks", "/schedule", "/quality",
-                "/procurement", "/attendance", "/workbench"}
+                "/procurement", "/attendance", "/workbench", "/overview", "/mcp-guide"}
 # 开通页与找回页：未登录时也允许打开（它们自己会引导去登录/飞书）
 ONBOARDING_PAGES = {"/onboarding", "/reset"}
 ONBOARDING_API = {"/api/auth/account/onboard", "/api/auth/account/reset-password"}

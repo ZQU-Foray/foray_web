@@ -7,7 +7,7 @@ export const NAV: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "MANAGEMENT",
     items: [
-      { href: "/", no: "01", name: "总览", en: "HOME" },
+      { href: "/overview", no: "01", name: "总览", en: "HOME" },
       { href: "/attendance", no: "02", name: "考勤", en: "ATTENDANCE" },
       { href: "/projects", no: "03", name: "项目", en: "PROJECT" },
       { href: "/tasks", no: "04", name: "事项", en: "TASKS" },
@@ -17,11 +17,12 @@ export const NAV: Array<{ label: string; items: NavItem[] }> = [
   },
   {
     label: "PERSONAL",
-    items: [{ href: "/workbench", no: "07", name: "个人工作台", en: "WORKBENCH" }],
+    items: [{ href: "/", no: "07", name: "工作台", en: "WORKBENCH" }],
   },
   {
     label: "DIAGNOSTICS",
-    items: [{ href: "/quality", no: "08", name: "数据质量", en: "QUALITY" }],
+    items: [{ href: "/quality", no: "08", name: "数据质量", en: "QUALITY" },
+            { href: "/mcp-guide", no: "09", name: "MCP 接入", en: "MCP" }],
   },
 ];
 
