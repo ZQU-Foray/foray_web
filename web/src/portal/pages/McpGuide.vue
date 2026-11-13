@@ -1,9 +1,16 @@
 <script setup lang="ts">
 /* MCP 接入引导：把 docs/portal-mcp.md 里成员自己就能做完的几步搬到页面上。
- * 只展示说明与复制用文本，不发起任何请求——令牌明文只在签发那一刻出现，
- * 这里不读取、不保存、也不回显任何令牌。 */
+ * 2026-11-13 起「拿令牌」以网页一键生成为主路径：按钮打 /api/portal/agents/self，
+ * 明文只留在这一次响应的内存里——不写 localStorage、不进 URL、刷新即消失，
+ * 页面上也不回显已存在令牌的任何凭据（列表只有元数据）。 */
+import { onMounted, ref } from "vue";
 import PortalPage from "../components/PortalPage.vue";
 import { navNo } from "../nav";
+import { createMyAgent, fetchMyAgents, revokeMyAgent } from "../api";
+import { errorDetail } from "@/shared/http";
+import { toast } from "@/shared/toast";
+import { fmtDT } from "@/shared/format";
+import type { AgentToken } from "../types";
 
 /* 与当前访问来源保持一致：内网、演示实例、正式域名都能直接照抄 */
 const origin = location.origin;
@@ -53,6 +60,76 @@ const TROUBLE: Array<[string, string]> = [
   ["确认页 409 令牌数量已达上限", "每人最多 5 个未撤销令牌，先撤销不用的"],
 ];
 
+/* ---------- 网页一键生成：令牌绑定本人身份，明文只出现一次 ---------- */
+const agents = ref<AgentToken[]>([]);
+const scopesForMe = ref<{ scope: string; description: string }[]>([]);
+const maxActive = ref(5);
+const agentName = ref("门户网页生成");
+const minted = ref<{ name: string; token: string } | null>(null);
+const loading = ref(true);
+const minting = ref(false);
+/* 本地维护者账号没有花名册身份，自助签发对它没意义：接口 403，就把这一段换成说明 */
+const needFeishu = ref(false);
+
+async function loadAgents(): Promise<void> {
+  try {
+    const d = await fetchMyAgents();
+    agents.value = d.data || [];
+    scopesForMe.value = d.scopes || [];
+    maxActive.value = d.max_active || 5;
+    needFeishu.value = false;
+  } catch {
+    needFeishu.value = true;
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function mint(): Promise<void> {
+  minting.value = true;
+  try {
+    const res = await createMyAgent(agentName.value.trim() || "门户网页生成");
+    if (res.ok) {
+      minted.value = { name: res.body.agent.name, token: res.body.token };
+      toast("令牌已生成，复制后请马上填进客户端配置", "ok");
+      void loadAgents();
+    } else {
+      toast("生成失败：" + errorDetail(res), "error");
+    }
+  } catch {
+    toast("网络错误，未生成令牌", "error");
+  } finally {
+    minting.value = false;
+  }
+}
+
+async function copyMinted(): Promise<void> {
+  if (!minted.value) return;
+  try {
+    await navigator.clipboard.writeText(minted.value.token);
+    toast("令牌已复制", "ok");
+  } catch {
+    /* 非安全上下文或用户拒绝授权时，剪贴板不可用，让人手动选中 */
+    toast("浏览器不允许写剪贴板，请手动选中复制", "error");
+  }
+}
+
+function dropMinted(): void {
+  minted.value = null;
+}
+
+async function revoke(id: string): Promise<void> {
+  const res = await revokeMyAgent(id);
+  if (res.ok) {
+    toast("已撤销，下一次请求就会 401", "ok");
+    void loadAgents();
+  } else {
+    toast("撤销失败：" + errorDetail(res), "error");
+  }
+}
+
+onMounted(loadAgents);
+
 </script>
 
 <template>
@@ -83,17 +160,69 @@ const TROUBLE: Array<[string, string]> = [
     <section id="mcp-token" class="module enter">
       <div class="module-head">
         <span class="module-tag">TOKEN / 02</span><h2>拿令牌</h2>
-        <span class="module-sub">成员自助最快；维护者也可以代发</span>
+        <span class="module-sub">网页一键生成；没有浏览器时也能走命令行</span>
       </div>
       <div class="module-body">
-        <h3 class="mcp-h">方式一 · 成员自助（设备码授权，推荐）</h3>
+        <h3 class="mcp-h">方式一 · 网页一键生成（推荐）</h3>
+        <p class="mcp-p" v-if="needFeishu">当前会话没有飞书身份（本地维护者账号），自助签发对它不可用：
+          请用飞书登录后再来，或让维护者按方式三代发。</p>
+        <template v-else>
+          <p class="mcp-p">令牌绑定你本人的飞书身份，只读、按 scope 收窄、随时可撤销。
+            明文只在生成那一刻显示一次，刷新后不再出现，服务端只留摘要。</p>
+          <div class="mcp-mint">
+            <input v-model="agentName" id="mcp-agent-name" class="mcp-input" maxlength="24"
+                   aria-label="令牌名称" placeholder="给这个客户端起个名字" />
+            <button id="mcp-mint" class="btn" :disabled="minting" @click="mint">
+              {{ minting ? "生成中…" : "生成我的令牌" }}
+            </button>
+          </div>
+          <div v-if="minted" id="mcp-token-box" class="mcp-token-box">
+            <p class="mcp-token-tip">只显示这一次：{{ minted.name }} —— 复制完请立刻填进客户端配置</p>
+            <pre id="mcp-token-value" class="mcp-code t-mono">{{ minted.token }}</pre>
+            <p class="mcp-actions">
+              <button id="mcp-token-copy" class="btn ghost sm" @click="copyMinted">复制令牌</button>
+              <button class="btn ghost sm" @click="dropMinted">我记住了，收起</button>
+            </p>
+          </div>
+
+          <h3 class="mcp-h">我的令牌</h3>
+          <p class="mcp-p" v-if="loading">读取中…</p>
+          <p class="mcp-p" v-else-if="!agents.length">还没有令牌，上面点一下就能生成。</p>
+          <div v-else class="tbl-wrap">
+            <table id="mcp-my-agents" class="tbl cards-sm">
+              <thead><tr><th>名称</th><th>scope</th><th>创建</th><th>最后使用</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr v-for="a in agents" :key="a.id">
+                  <td data-label="名称">{{ a.name }}</td>
+                  <td data-label="scope" class="t-mono">{{ a.scopes.length }} 个</td>
+                  <td data-label="创建">{{ fmtDT(a.created_at) }}</td>
+                  <td data-label="最后使用">{{ a.last_used_at ? fmtDT(a.last_used_at) : "未使用" }}</td>
+                  <td data-label="状态">
+                    <span class="badge" :class="a.revoked_at ? 'neutral' : 'ok'">
+                      {{ a.revoked_at ? "已撤销" : "可用" }}
+                    </span>
+                  </td>
+                  <td data-label="操作">
+                    <button v-if="!a.revoked_at" class="btn ghost xs" @click="revoke(a.id)">撤销</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="mcp-p">本人最多 {{ maxActive }} 个未撤销令牌；scope 固定为本人可见的只读域
+            （<span class="t-mono">{{ scopesForMe.map(s => s.scope).join("、") }}</span>），不接受自己勾选——
+            能自选就等于能自我提权。</p>
+        </template>
+
+        <h3 class="mcp-h">方式二 · 命令行（设备码授权）</h3>
         <p class="mcp-p">命令行申请设备码 → 浏览器用飞书登录确认 → 命令行换到令牌。
-          令牌存到 <span class="t-mono">~/.config/foray-mcp/token.json</span>（权限 600）。</p>
+          适合没有浏览器、或想在服务器上直接落盘的场景；令牌存到
+          <span class="t-mono">~/.config/foray-mcp/token.json</span>（权限 600）。</p>
         <pre class="mcp-code t-mono">{{ loginCmd }}</pre>
         <p class="mcp-p">只想打印不落盘加 <span class="t-mono">--no-save</span>；
           想改客户端名字（会显示在确认页与令牌列表）加 <span class="t-mono">--client-name cursor</span>。</p>
 
-        <h3 class="mcp-h">方式二 · 维护者代发</h3>
+        <h3 class="mcp-h">方式三 · 维护者代发</h3>
         <p class="mcp-p">维护者 = 应急账号会话，或 open_id 在 <span class="t-mono">PORTAL_MAINTAINER_IDS</span> 里。
           返回的 <span class="t-mono">token</span> 只出现这一次，记得当场存好。</p>
         <pre class="mcp-code t-mono">{{ maintainerCmd }}</pre>
@@ -202,5 +331,37 @@ const TROUBLE: Array<[string, string]> = [
   background: var(--c-surface);
   border: 1px solid var(--c-divider);
   white-space: pre;
+}
+.mcp-mint {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0 12px;
+  flex-wrap: wrap;
+}
+.mcp-input {
+  min-width: 200px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--c-ink);
+  background: var(--c-white);
+  border: 1px solid var(--c-divider);
+}
+.mcp-input:focus-visible { outline: 2px solid var(--c-ink); outline-offset: -2px; }
+.mcp-token-box {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-divider);
+}
+.mcp-token-tip {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--c-danger);
+}
+.mcp-actions {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 0;
 }
 </style>

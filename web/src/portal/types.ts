@@ -424,3 +424,16 @@ export interface WorkbenchBody extends Envelope {
   updated_at?: number | null;
   cards: WorkbenchCard[];
 }
+
+/* ---------- MCP 令牌（/api/portal/agents/self，只列本人） ---------- */
+export interface AgentToken {
+  id: string;
+  name: string;
+  open_id: string;
+  scopes: string[];
+  created_by: string;
+  created_at: number;
+  last_used_at?: number | null;
+  revoked_at?: number | null;
+  note?: string;
+}

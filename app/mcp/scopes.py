@@ -39,6 +39,18 @@ def normalize(raw):
     return out
 
 
+def for_open_id(open_id: str) -> list:
+    """按身份派生可签发的 scope：所有成员得默认只读域，维护者额外得 sync.read。
+
+    不接受调用方自选 —— 能自选就等于能自我提权，因此签发入口只认这里的结果。
+    """
+    from .. import config
+    out = list(DEFAULT_SCOPES)
+    if open_id and open_id in config.PORTAL_MAINTAINER_IDS:
+        out.append("sync.read")
+    return out
+
+
 def has(agent: dict, scope: str) -> bool:
     """令牌是否持有该 scope（记录由 agents.verify() 返回）。"""
     return scope in (agent or {}).get("scopes", ())

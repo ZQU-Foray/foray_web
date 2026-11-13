@@ -322,6 +322,86 @@ def api_agents_revoke(agent_id: str, request: Request):
     return {"ok": True}
 
 
+# ---- 成员自助：网页上一键生成自己的令牌（2026-11-13） ----
+# 与上面的维护者端点分开：身份只认会话里的 open_id，scope 只认 scopes.for_open_id，
+# 明文同样只出现一次；上限按人算，免得一人刷出一屏凭据。
+
+_SELF_MAX_ACTIVE = 5
+
+
+def _require_member_identity(request):
+    """本人门禁：会话必须带飞书身份（open_id）。
+
+    本地维护者账号（open_id 形如 local-*）进不了花名册，自助签发对它没有意义，
+    直接给一句能读懂的拒绝，而不是发一个读不到任何数据的令牌。
+    """
+    _check_same_origin(request)
+    sess = getattr(request.state, "session", None) or {}
+    open_id = str((sess.get("extra") or {}).get("open_id") or "")
+    if not open_id:
+        raise HTTPException(403, "当前会话没有飞书身份，不能自助签发令牌；请用飞书登录后再来")
+    return open_id
+
+
+@router.get("/agents/self")
+def api_self_agents(request: Request):
+    """本人令牌列表 + 可签发的 scope（不返回摘要与明文）。"""
+    open_id = _require_member_identity(request)
+    from ..auth import agents as _agents
+    from ..mcp import scopes as _scopes
+    return {"data": _agents.list_agents(open_id),
+            "scopes": [{"scope": s, "description": _scopes.SCOPES[s]}
+                       for s in _scopes.for_open_id(open_id)],
+            "max_active": _SELF_MAX_ACTIVE,
+            "notice": "明文只在生成那一刻显示，服务端只留 sha256 摘要"}
+
+
+@router.post("/agents/self")
+async def api_self_agents_create(request: Request):
+    """签发一个绑定本人的 agent 令牌：返回一次性明文 token。"""
+    open_id = _require_member_identity(request)
+    from ..auth import agents as _agents
+    from ..mcp import scopes as _scopes
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if body is None:
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(422, "请求体必须是对象")
+    active = _agents.count_active(open_id)
+    if active >= _SELF_MAX_ACTIVE:
+        raise HTTPException(422, "你已有 %d 个未撤销的令牌（上限 %d），先撤销不用的再生成"
+                            % (active, _SELF_MAX_ACTIVE))
+    try:
+        made = _agents.create(name=str(body.get("name") or "").strip() or "门户网页生成",
+                              open_id=open_id, scopes=_scopes.for_open_id(open_id),
+                              created_by="self:" + _who(request),
+                              note=str(body.get("note") or "").strip())
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    _audit("portal_agent_create_self", agent=made["agent"]["id"], open_id=open_id,
+           scopes=",".join(made["agent"]["scopes"]), by=_who(request))
+    return {"agent": made["agent"], "token": made["token"],
+            "notice": "令牌只显示这一次，请马上复制到 MCP 客户端配置里；服务端只保存摘要"}
+
+
+@router.post("/agents/self/{agent_id}/revoke")
+def api_self_agents_revoke(agent_id: str, request: Request):
+    """撤销本人的一个令牌；别人的令牌一律按「没有这个令牌」处理。"""
+    open_id = _require_member_identity(request)
+    from ..auth import agents as _agents
+    rec = _agents.get(agent_id)
+    if rec is None or rec.get("open_id") != open_id:
+        raise HTTPException(404, "没有这个令牌")
+    if rec.get("revoked_at"):
+        raise HTTPException(409, "这个令牌已经撤销了，请刷新列表")
+    _agents.revoke(agent_id, by="self:" + _who(request))
+    _audit("portal_agent_revoke_self", agent=agent_id, by=_who(request))
+    return {"ok": True}
+
+
 # ---------------- 总览 ----------------
 
 @router.get("/overview")

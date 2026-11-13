@@ -1142,6 +1142,9 @@ async def t_home_and_mcp_guide(browser):
           "/mcp" in body and "Bearer" in body, body[:60])
     for word in ("设备码授权", "mcp-remote", "portal_list_tasks", "-32001"):
         check(f"MCP 接入页含「{word}」", word in body)
+    # 成员自助：网页一键生成入口必须在（不点，免得给 e2e 账号真造令牌）
+    check("MCP 接入页有网页一键生成入口", "网页一键生成" in body)
+    check("MCP 接入页有我的令牌列表区块", "我的令牌" in body)
     await page.close()
 
 
