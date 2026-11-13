@@ -46,13 +46,17 @@
 - 前端（2026-10 起 Vue 3）：开发、构建、回退与架构记录见 `docs/frontend-vue.md`；
   **改前端后必须在 `web/` 执行 `npm run build` 并连同 `static/app/` 一起部署**。
 - 运维手册：`docs/portal-operations.md`（上线形态/部署升级/备份恢复/凭据轮换/监控巡检/应急账号/
-  飞书配置/回退与故障排查）；部署差异与发布清单：`docs/portal-deploy.md`；验收报告：
+  飞书配置/回退与故障排查）；部署差异与发布清单：`docs/portal-deploy.md`；NAS 容器化发布与飞书联调：
+  `docs/portal-nas-deploy.md`；验收报告：
   `docs/portal-acceptance.md`；飞书配置指南：`docs/feishu-setup.md`；物资明细字段口径与
   维护：`docs/procurement-detail.md`；改造进度：`docs/portal-progress.md`。
 - 部署与退回：`python deploy.py --dry-run` 自检；实际部署 `python deploy.py`（服务器地址、端口、账号与口令
   默认读 `config/deploy_server.json`，样例 `config/deploy_server.example.json`；也可用 `--host/--ssh-port/--user/--password`）；
   `python deploy.py --list-backups` 列出可退回的版本，`python deploy.py --restore <时间戳>` 退回到该次升级之前
   （旧调试台已不存在，`--rollback` 会拒绝执行）。
+- NAS 容器化发布（无 systemd 的环境，如群晖/威联通）：`docker compose up -d --build`，
+  镜像定义见 `Dockerfile`，`config/`、`firmware/`、`tls/` 以宿主机挂载、升级不覆盖；
+  完整步骤与飞书联调清单见 `docs/portal-nas-deploy.md`。
 - 备份/恢复：`scripts/portal_backup.py --data-dir /opt/portal --out <目录> --keep 14 --tar` 与
   `scripts/portal_restore.py --bundle <目录|tar.gz> --target <目录>`（含逐文件 sha256 校验与
   快照库一致性副本；隔离演练见 `tests/e2e/test_backup_restore.py`）。

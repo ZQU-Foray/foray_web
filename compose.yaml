@@ -1,0 +1,35 @@
+# NAS 上的门户编排（群晖 Container Manager / 威联通 Container Station / 通用 docker compose）
+#
+# 用法：
+#   cp deploy/nas.env.example .env        # 填飞书凭据与本机地址
+#   mkdir -p config firmware tls          # 宿主机目录，保存飞书配置与固件
+#   docker compose up -d --build
+#
+# 说明：
+# - config/、firmware/、tls/ 用 bind mount，升级重建容器不会丢配置；
+# - 单实例部署，不要在这里扩到多副本（会话与限频状态在进程内）；
+# - 硬件功能（烧录/串口/网段扫描）在容器里默认不可用，见 docs/portal-nas-deploy.md §7。
+services:
+  portal:
+    build: .
+    image: foray-portal:dev
+    container_name: foray-portal
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # 与 .env 里的 WEB_PORT 保持一致；容器内固定 8000，宿主机端口在 ports 里映射
+      WEB_PORT: "8000"
+      TZ: "Asia/Shanghai"
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    volumes:
+      - ./config:/app/config
+      - ./firmware:/app/firmware
+      - ./tls:/app/tls
+    # 如果 NAS 上有反向代理容器，把它的地址加到 forwarded-allow-ips，客户端 IP 才不会丢
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
