@@ -6,8 +6,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import PortalPage from "../components/PortalPage.vue";
 import ConfirmButton from "../components/ConfirmButton.vue";
 import RankList from "../components/RankList.vue";
+import CheckinButton from "../components/CheckinButton.vue";
 import { navNo } from "../nav";
-import { fetchWorkbench, resetWorkbench, saveWorkbench } from "../api";
+import { fetchAttendance, fetchWorkbench, resetWorkbench, saveWorkbench } from "../api";
+import { requestRefresh, store } from "../store";
 import { usePageData } from "../usePageData";
 import { RouterLink } from "@/shared/router";
 import { errorDetail } from "@/shared/http";
@@ -100,6 +102,7 @@ function fitStage(): void {
 }
 
 onMounted(() => {
+  void loadAttendState();
   fitStage();
   window.addEventListener("resize", fitStage);
   /* 页头高度会随描述换行变化（窄屏尤其明显），跟着它一起重算 */
@@ -208,6 +211,24 @@ const myAttendance = computed(() => {
            threshold: (c && c.data && c.data.threshold) || 0,
            note: (c && c.data && c.data.note) || "" };
 });
+/* 打卡按钮的「签到 / 签退」以服务端 status 为准：花名册快照还没同步出本人记录时，
+ * 卡片正文可能只有一句「找不到记录」，但签到本身仍可用（服务端会建行）。 */
+const checkedIn = ref(false);
+async function loadAttendState(): Promise<void> {
+  try {
+    const st = await fetchAttendance();
+    checkedIn.value = !!st.checked_in;
+  } catch {
+    /* 读不到状态就先按「未签到」显示，真点下去服务端会给出准话 */
+  }
+}
+/* 轮询或别处写入后，打卡按钮的状态也跟着服务端走一遍 */
+watch(() => store.refreshSeq, loadAttendState);
+/* 打卡返回后让整页数据重拉：签到态与本周工时都是服务端算的，前端不自己改数 */
+function onCheckinDone(): void {
+  requestRefresh();
+  void loadAttendState();
+}
 function tasksOf(id: string): Task[] {
   return items<Task>(cardOf(id));
 }
@@ -335,16 +356,22 @@ function countdown(m: WorkbenchMilestoneRow): string {
                   <span class="wb-unit">h / 本周（达标线 {{ myAttendance.threshold }} h）</span>
                 </p>
                 <p class="wb-line">
-                  <span class="badge" :class="myAttendance.row.checked_in ? 'ok' : 'neutral'">
-                    {{ myAttendance.row.checked_in ? '已签到' : '未签到' }}
+                  <span class="badge" :class="checkedIn ? 'ok' : 'neutral'">
+                    {{ checkedIn ? '已签到' : '未签到' }}
                   </span>
-                  <span v-if="myAttendance.row.checked_in && myAttendance.row.checked_in_since" class="row-meta">
+                  <span v-if="checkedIn && myAttendance.row.checked_in_since" class="row-meta">
                     自 {{ fmtDT(myAttendance.row.checked_in_since) }}
                   </span>
                   <span v-if="myAttendance.row.leave" class="badge warn">本周请假</span>
                   <span v-if="myAttendance.row.pending" class="badge neutral">待结算</span>
                 </p>
               </template>
+              <!-- 签到 / 签退入口：工作台就是默认首页，不用为了打卡再跑考勤页；
+                   本行不依赖上面的花名册行，新成员第一次签到也能点 -->
+              <p class="wb-line wb-attend-row">
+                <CheckinButton :checked-in="checkedIn" btn-id="workbench-attend-btn" @done="onCheckinDone" />
+                <span class="row-meta">网段校验、跨零点作废等规则在服务端</span>
+              </p>
             </template>
 
             <!-- 我的事项 / 临期与逾期 -->
@@ -491,6 +518,8 @@ function countdown(m: WorkbenchMilestoneRow): string {
 .wb-metric { margin: 4px 0; font-size: 22px; }
 .wb-unit { font-size: 12px; margin-left: 6px; }
 .wb-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.wb-attend-row { margin-top: auto; }
+.wb-attend-row .btn { flex: none; }
 .wb-list { list-style: none; margin: 0; padding: 0; }
 .wb-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 3px 0; border-top: 1px dashed var(--c-line, #eee); }
 .wb-row:first-child { border-top: none; }

@@ -89,7 +89,7 @@ npm run typecheck      # vue-tsc 全量类型检查
   卡片目录渲染，布局按人存在快照库 `workbench_layouts`。2026-11-13 起分两种模式：默认「功能模式」只显示卡片，
   卡片区按页头高度现算 `min-height` 撑满一屏；点右上「配置」才进入配置模式，露出排序（原生 HTML5 拖放 + 每卡
   「↑/↓」按钮）、半屏/整屏、移除与卡片库，改完点「完成」收起。每次改动立即 PUT `/api/portal/workbench` 并重新拉取。
-  卡片数据由服务端按布局现算（复用既有视图与 compute），接口与目录见 `docs/portal-workbench.md`。品牌区标题「信息面板 / INFO PANEL」，去掉了版本号。
+  卡片数据由服务端按布局现算（复用既有视图与 compute），接口与目录见 `docs/portal-workbench.md`。品牌区标题「信息面板 / INFO PANEL」，去掉了版本号。「我的考勤」卡片底部有 `CheckinButton.vue` 提供的签到 / 签退按钮（2026-11-13 搬入，与总览打卡条共用 `/api/portal/attendance/*`；按钮状态取服务端 `GET /api/portal/attendance` 的 `checked_in`，不依赖花名册快照，新成员首次签到也能点）。
 - MCP 接入引导页（2026-11-13 新增）：`/mcp-guide`（`portal/pages/McpGuide.vue`）把 `docs/portal-mcp.md` 里
   成员自己能做完的几步摆成页面：端点与凭据、两种拿令牌方式、客户端配置（mcp-remote / streamable HTTP）、
   scope 与工具表、常见错误码。页面不请求任何接口，也不读取或回显令牌。

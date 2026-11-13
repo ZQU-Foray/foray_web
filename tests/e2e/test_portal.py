@@ -1094,6 +1094,12 @@ async def t_home_and_mcp_guide(browser):
     check("默认不显示布局状态行", layout["status"] == 0, str(layout))
     # 卡片区要一路铺到一屏底部（内容比一屏多时允许继续往下滚）
     check("默认卡片区延伸到一屏底部", layout["gridBottom"] >= layout["viewH"] - 4, str(layout))
+    # 2026-11-13：签到 / 签退按钮搬进工作台的「我的考勤」卡片，不用再去考勤页
+    attend = page.locator("#workbench-attend-btn")
+    attend_text = (await attend.text_content() or "").strip() if await attend.count() else ""
+    in_card = await attend.evaluate("e => !!e.closest('.wb-card')") if attend_text else False
+    check("工作台的考勤卡片里有签到 / 签退按钮", in_card, attend_text or "未找到按钮")
+    check("按钮文案是签到或签退", attend_text in ("签到", "签退"), attend_text)
     await page.click("#workbench-config")
     await page.wait_for_timeout(500)
     editing = await page.evaluate("""() => ({

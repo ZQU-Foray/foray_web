@@ -1,5 +1,6 @@
 <script setup lang="ts">
-/* 考勤打卡条（排行卡头部）：签到 / 签退；网段校验在服务端 */
+/* 考勤打卡条（排行卡头部）：签到 / 签退；网段校验在服务端。
+ * 2026-11-13 起工作台的「我的考勤」卡片里也有一个打卡按钮（CheckinButton），两处共用同一接口。 */
 import { onMounted, ref, watch } from "vue";
 import { attendanceAction, fetchAttendance } from "../api";
 import { requestRefresh, store } from "../store";
