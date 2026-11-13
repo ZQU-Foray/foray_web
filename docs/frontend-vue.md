@@ -86,8 +86,9 @@ npm run typecheck      # vue-tsc 全量类型检查
 - 侧栏顺序（2026-11-13 改）：01 总览（`/overview`）、02 考勤、03 项目、04 事项、05 物资采购、06 日程、07 工作台（PERSONAL 分组，`/` 即默认首页）、08 数据质量、09 MCP 接入（`/mcp-guide`）（`portal/nav.ts`）。
 - 默认首页（2026-11-13 改）：`/` 渲染工作台，原总览迁到 `/overview`；`/workbench` 仍可打开同一页面（`portal/routes.ts`）。新增页面路径要同时登记 `app/auth/guard.py` 的 `PORTAL_PAGES` 与 `app/main.py` 的页面路由。
 - 工作台（2026-11-03 新增，原名「个人工作台」）：`/` 页面（`portal/pages/Workbench.vue`）按服务端下发的
-  卡片目录渲染，布局按人存在快照库 `workbench_layouts`；排序用原生 HTML5 拖放 + 每卡「↑/↓」按钮，
-  卡片可增删、切半屏/整屏，每次改动立即 PUT `/api/portal/workbench` 并重新拉取。
+  卡片目录渲染，布局按人存在快照库 `workbench_layouts`。2026-11-13 起分两种模式：默认「功能模式」只显示卡片，
+  卡片区按页头高度现算 `min-height` 撑满一屏；点右上「配置」才进入配置模式，露出排序（原生 HTML5 拖放 + 每卡
+  「↑/↓」按钮）、半屏/整屏、移除与卡片库，改完点「完成」收起。每次改动立即 PUT `/api/portal/workbench` 并重新拉取。
   卡片数据由服务端按布局现算（复用既有视图与 compute），接口与目录见 `docs/portal-workbench.md`。品牌区标题「信息面板 / INFO PANEL」，去掉了版本号。
 - MCP 接入引导页（2026-11-13 新增）：`/mcp-guide`（`portal/pages/McpGuide.vue`）把 `docs/portal-mcp.md` 里
   成员自己能做完的几步摆成页面：端点与凭据、两种拿令牌方式、客户端配置（mcp-remote / streamable HTTP）、

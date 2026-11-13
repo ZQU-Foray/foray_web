@@ -1080,7 +1080,38 @@ async def t_home_and_mcp_guide(browser):
           (await page.text_content(".page-title") or "")[:20])
     check("侧栏「工作台」为当前页",
           await page.locator('.side-nav-item[href="/"]').get_attribute("aria-current") == "page")
-    check("工作台面板渲染（我的面板）", await page.query_selector("#workbench-status") is not None)
+    # 2026-11-13：默认只有功能卡片，配置项（排序 / 宽度 / 移除 / 卡片库）进「配置」模式才出现
+    layout = await page.evaluate("""() => ({
+        cards: document.querySelectorAll('#workbench-grid .wb-card').length,
+        tools: document.querySelectorAll('#workbench-grid .wb-tools').length,
+        library: document.querySelectorAll('#workbench-library').length,
+        status: document.querySelectorAll('#workbench-status').length,
+        gridBottom: Math.round(document.querySelector('#workbench-grid').getBoundingClientRect().bottom),
+        viewH: window.innerHeight,
+    })""")
+    check("默认显示功能卡片", layout["cards"] > 0, str(layout))
+    check("默认不显示卡片的配置按钮", layout["tools"] == 0 and layout["library"] == 0, str(layout))
+    check("默认不显示布局状态行", layout["status"] == 0, str(layout))
+    # 卡片区要一路铺到一屏底部（内容比一屏多时允许继续往下滚）
+    check("默认卡片区延伸到一屏底部", layout["gridBottom"] >= layout["viewH"] - 4, str(layout))
+    await page.click("#workbench-config")
+    await page.wait_for_timeout(500)
+    editing = await page.evaluate("""() => ({
+        tools: document.querySelectorAll('#workbench-grid .wb-tools').length,
+        library: document.querySelectorAll('#workbench-library').length,
+        status: document.querySelectorAll('#workbench-status').length,
+        done: document.querySelectorAll('#workbench-done').length,
+    })""")
+    check("进配置模式后露出卡片工具、卡片库与状态行",
+          editing["tools"] > 0 and editing["library"] == 1 and editing["status"] == 1, str(editing))
+    check("配置模式有「完成」按钮退出", editing["done"] == 1, str(editing))
+    await page.click("#workbench-done")
+    await page.wait_for_timeout(400)
+    back = await page.evaluate("""() => ({
+        tools: document.querySelectorAll('#workbench-grid .wb-tools').length,
+        library: document.querySelectorAll('#workbench-library').length,
+    })""")
+    check("退出配置模式后配置项收起", back["tools"] == 0 and back["library"] == 0, str(back))
     await page.close()
 
     page = await new_page(browser, "/overview")
